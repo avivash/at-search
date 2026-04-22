@@ -2,7 +2,8 @@ import 'dotenv/config'
 import { createDhtNode } from './dht.js'
 import { buildServer } from './server.js'
 
-const PORT = parseInt(process.env.ATSEARCH_HTTP_PORT ?? '3002', 10)
+// Render sets `PORT`; support it as a fallback.
+const PORT = parseInt(process.env.ATSEARCH_HTTP_PORT ?? process.env.PORT ?? '3002', 10)
 const DHT_PORT = parseInt(process.env.ATSEARCH_DHT_PORT ?? '8002', 10)
 const BOOTSTRAP_PEERS = process.env.ATSEARCH_DHT_BOOTSTRAP
   ? process.env.ATSEARCH_DHT_BOOTSTRAP.split(',').map((s) => s.trim())

@@ -1,0 +1,14 @@
+:{$PORT} {
+	encode zstd gzip
+
+	@api path /api/* 
+	handle @api {
+		rewrite * {path.1}
+		reverse_proxy {$ATSEARCH_QUERY_UPSTREAM}
+	}
+
+	root * /usr/share/caddy
+	try_files {path} /index.html
+	file_server
+}
+

@@ -17,8 +17,6 @@ QUERY_PORT="${QUERY_PORT:-3002}"
 QUERY_DHT_PORT="${QUERY_DHT_PORT:-8002}"
 DEMO_PORT="${DEMO_PORT:-5173}"
 
-export VITE_QUERY_API_URL="${VITE_QUERY_API_URL:-http://localhost:${QUERY_PORT}}"
-
 export ATSEARCH_MODE="${ATSEARCH_MODE:-local}"
 
 export USE_MICROCOSM="${USE_MICROCOSM:-true}"
@@ -168,7 +166,7 @@ if ! curl -sf "http://localhost:${QUERY_PORT}/health" | grep -q microcosm; then
   echo "         You may have an old binary on port ${QUERY_PORT}; stop it and re-run."
 fi
 
-VITE_QUERY_API_URL="http://localhost:${QUERY_PORT}" \
+VITE_QUERY_PROXY_TARGET="http://127.0.0.1:${QUERY_PORT}" \
   bun run --filter @atsearch/demo-client dev -- --port "$DEMO_PORT" &
 CLIENT_PID=$!
 echo "Demo client started (PID $CLIENT_PID)"

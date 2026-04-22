@@ -1,0 +1,15 @@
+FROM oven/bun:1 AS build
+WORKDIR /app
+
+COPY packages/demo-client ./packages/demo-client
+WORKDIR /app/packages/demo-client
+
+RUN bun install --frozen-lockfile || bun install
+RUN bun run build
+
+FROM caddy:2-alpine
+COPY --from=build /app/packages/demo-client/build /usr/share/caddy
+COPY deploy/Caddyfile.render /etc/caddy/Caddyfile
+
+EXPOSE 10000
+

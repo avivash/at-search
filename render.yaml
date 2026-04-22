@@ -1,0 +1,61 @@
+services:
+  # Public web UI (Caddy serves static build and proxies /api -> query-node)
+  - type: web
+    name: at-search-web
+    runtime: docker
+    plan: starter
+    dockerfilePath: ./Dockerfile.web-render
+    autoDeploy: true
+    envVars:
+      - key: ATSEARCH_QUERY_UPSTREAM
+        fromService:
+          type: pserv
+          name: at-search-query-node
+          property: hostport
+
+  # Private query-node API
+  - type: pserv
+    name: at-search-query-node
+    runtime: docker
+    plan: starter
+    dockerfilePath: ./Dockerfile.query-node
+    autoDeploy: true
+    envVars:
+      - key: ATSEARCH_INDEXER_URLS
+        fromService:
+          type: pserv
+          name: at-search-indexer
+          property: hostport
+      - key: USE_MICROCOSM
+        value: "true"
+      - key: MICROCOSM_SLINGSHOT_BASE_URL
+        value: "https://slingshot.microcosm.blue"
+      - key: MICROCOSM_CONSTELLATION_BASE_URL
+        value: "https://constellation.microcosm.blue"
+      - key: FALLBACK_ATPROTO_XRPC_BASE_URL
+        value: "https://public.api.bsky.app"
+      - key: APP_USER_AGENT
+        value: "at-search-demo/0.1 (render)"
+      # Render's private services only expose one port; disable DHT by default.
+      - key: ATSEARCH_DHT_PORT
+        value: "0"
+
+  # Private indexer HTTP service (SQLite stored on an attached disk)
+  - type: pserv
+    name: at-search-indexer
+    runtime: docker
+    plan: starter
+    dockerfilePath: ./Dockerfile.indexer
+    autoDeploy: true
+    disk:
+      name: at-search-data
+      mountPath: /data
+      sizeGB: 1
+    envVars:
+      - key: ATSEARCH_DB_PATH
+        value: "/data/indexer.db"
+      - key: ATSEARCH_MODE
+        value: "local"
+      - key: ATSEARCH_DHT_PORT
+        value: "0"
+

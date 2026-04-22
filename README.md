@@ -330,7 +330,10 @@ ATSEARCH_HTTP_PORT=3002 ATSEARCH_INDEXER_URLS=http://localhost:3001 bun run dev
 
 # Terminal 3 — demo client
 cd packages/demo-client
-VITE_QUERY_API_URL=http://localhost:3002 bun run dev -- --port 5173
+# The dev server proxies /api → query-node (see vite.config.ts), so you don't need VITE_QUERY_API_URL.
+# If you changed the query node port, set VITE_QUERY_PROXY_TARGET accordingly.
+# Example: VITE_QUERY_PROXY_TARGET=http://127.0.0.1:3012 bun run dev -- --port 5180
+bun run dev -- --port 5173
 ```
 
 ### With AT Proto credentials (poll mode)
@@ -347,6 +350,29 @@ ATSEARCH_HTTP_PORT=3001 \
 ---
 
 ## Environment variables
+
+---
+
+## Deploy to Render.com
+
+This repo includes a Render Blueprint at `render.yaml` that provisions:
+
+- `at-search-web` (public) — static demo + `/api` proxy
+- `at-search-query-node` (private) — Fastify API
+- `at-search-indexer` (private) — Fastify indexer + SQLite disk
+
+### Steps
+
+1. Push this repo to GitHub/GitLab.
+2. In Render, choose **New → Blueprint** and select the repository.
+3. Render will detect `render.yaml` and propose creating the three services.
+4. After deploy completes, open the `at-search-web` URL; the UI will call `/api/*` on the same origin.
+
+### Notes (Render limitations)
+
+- Render services only expose a single HTTP port. The Blueprint sets `ATSEARCH_DHT_PORT=0` to disable DHT listeners by default.
+- The indexer uses an attached disk mounted at `/data` and stores SQLite at `/data/indexer.db`.
+- If you want to run `ATSEARCH_MODE=poll`, set `ATSEARCH_MODE=poll`, `ATSEARCH_PDS_URL`, and `ATSEARCH_POLL_DIDS` on the `at-search-indexer` service in Render.
 
 ### Indexer
 
@@ -388,7 +414,7 @@ ATSEARCH_HTTP_PORT=3001 \
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `VITE_QUERY_API_URL` | `http://localhost:3002` | Query node base URL |
+| `VITE_QUERY_API_URL` | (unset) | Optional override for query node base URL. If unset, the demo calls `window.location.origin + "/api"` (and in dev, Vite proxies `/api` to the local query node). |
 
 ---
 

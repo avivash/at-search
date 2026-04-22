@@ -4,7 +4,8 @@ import { createDhtNode } from './dht.js'
 import { startServer } from './server.js'
 import { startPolling } from './poller.js'
 
-const PORT = parseInt(process.env.ATSEARCH_HTTP_PORT ?? '3001', 10)
+// Render sets `PORT`; support it as a fallback.
+const PORT = parseInt(process.env.ATSEARCH_HTTP_PORT ?? process.env.PORT ?? '3001', 10)
 const DB_PATH = process.env.ATSEARCH_DB_PATH ?? './data/indexer.db'
 const DHT_PORT = parseInt(process.env.ATSEARCH_DHT_PORT ?? '8001', 10)
 const NODE_KEY = process.env.ATSEARCH_NODE_KEY
