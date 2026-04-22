@@ -1,0 +1,22 @@
+{
+	# Enable on-disk cert storage and be explicit about protocols.
+	servers {
+		protocols h1 h2
+	}
+}
+
+{$ATSEARCH_PUBLIC_HOSTNAME:localhost} {
+	encode zstd gzip
+
+	@api path /api/* 
+	handle @api {
+		rewrite * {path.1}
+		reverse_proxy {$ATSEARCH_QUERY_UPSTREAM:http://query-node:3002}
+	}
+
+	# Static demo client
+	root * /usr/share/caddy
+	try_files {path} /index.html
+	file_server
+}
+

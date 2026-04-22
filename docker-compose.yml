@@ -1,0 +1,60 @@
+services:
+  indexer:
+    build:
+      context: .
+      dockerfile: Dockerfile.indexer
+    environment:
+      ATSEARCH_HTTP_PORT: "3001"
+      ATSEARCH_DHT_PORT: "8001"
+      ATSEARCH_DB_PATH: "/data/indexer.db"
+      # For public hosts, allow libp2p to listen on all interfaces.
+      ATSEARCH_LIBP2P_LISTEN_HOST: "0.0.0.0"
+      # Optional: poll mode credentials (see README)
+      ATSEARCH_MODE: "${ATSEARCH_MODE:-local}"
+      ATSEARCH_PDS_URL: "${ATSEARCH_PDS_URL:-https://bsky.social}"
+      ATSEARCH_HANDLE: "${ATSEARCH_HANDLE:-}"
+      ATSEARCH_PASSWORD: "${ATSEARCH_PASSWORD:-}"
+      ATSEARCH_NODE_KEY: "${ATSEARCH_NODE_KEY:-}"
+    volumes:
+      - atsearch_data:/data
+    ports:
+      - "3001:3001"
+      - "8001:8001"
+
+  query-node:
+    build:
+      context: .
+      dockerfile: Dockerfile.query-node
+    depends_on:
+      - indexer
+    environment:
+      ATSEARCH_HTTP_PORT: "3002"
+      ATSEARCH_DHT_PORT: "8002"
+      ATSEARCH_LIBP2P_LISTEN_HOST: "0.0.0.0"
+      ATSEARCH_INDEXER_URLS: "http://indexer:3001"
+
+      USE_MICROCOSM: "${USE_MICROCOSM:-true}"
+      MICROCOSM_SLINGSHOT_BASE_URL: "${MICROCOSM_SLINGSHOT_BASE_URL:-https://slingshot.microcosm.blue}"
+      MICROCOSM_CONSTELLATION_BASE_URL: "${MICROCOSM_CONSTELLATION_BASE_URL:-https://constellation.microcosm.blue}"
+      FALLBACK_ATPROTO_XRPC_BASE_URL: "${FALLBACK_ATPROTO_XRPC_BASE_URL:-https://public.api.bsky.app}"
+      APP_USER_AGENT: "${APP_USER_AGENT:-at-search-demo/0.1 (docker)}"
+    ports:
+      - "3002:3002"
+      - "8002:8002"
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.demo-client
+    depends_on:
+      - query-node
+    environment:
+      ATSEARCH_PUBLIC_HOSTNAME: "${ATSEARCH_PUBLIC_HOSTNAME:-localhost}"
+      ATSEARCH_QUERY_UPSTREAM: "http://query-node:3002"
+    ports:
+      - "80:80"
+      - "443:443"
+
+volumes:
+  atsearch_data:
+

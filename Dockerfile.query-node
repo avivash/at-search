@@ -1,0 +1,33 @@
+FROM node:22-bullseye-slim AS build
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 make g++ \
+  && rm -rf /var/lib/apt/lists/*
+
+COPY pnpm-workspace.yaml package.json tsconfig.json ./
+COPY packages ./packages
+
+RUN corepack enable && corepack prepare pnpm@9 --activate
+RUN pnpm install --no-frozen-lockfile --node-linker=hoisted
+RUN pnpm -C packages/common build && \
+    pnpm -C packages/query-node build
+
+FROM node:22-slim AS runtime
+WORKDIR /app
+ENV NODE_ENV=production
+
+COPY --from=build /app/node_modules ./node_modules
+COPY --from=build /app/packages/common/dist ./packages/common/dist
+COPY --from=build /app/packages/query-node/dist ./packages/query-node/dist
+COPY --from=build /app/packages/query-node/package.json ./packages/query-node/package.json
+COPY --from=build /app/packages/common/package.json ./packages/common/package.json
+
+# Ensure workspace dependency is resolvable at runtime.
+RUN mkdir -p ./node_modules/@atsearch/common
+COPY --from=build /app/packages/common/package.json ./node_modules/@atsearch/common/package.json
+COPY --from=build /app/packages/common/dist ./node_modules/@atsearch/common/dist
+
+EXPOSE 3002 8002
+CMD ["node", "packages/query-node/dist/index.js"]
+

@@ -1,4 +1,8 @@
-const API = import.meta.env.VITE_QUERY_API_URL ?? 'http://localhost:3002'
+// In production we often serve the UI and API on the same origin and proxy `/api`.
+// `VITE_QUERY_API_URL` still works for local dev (e.g. `http://localhost:3002`).
+const API =
+  (import.meta.env.VITE_QUERY_API_URL as string | undefined)?.trim() ||
+  (typeof window !== 'undefined' ? `${window.location.origin}/api` : 'http://localhost:3002')
 
 export interface StrongRef {
   uri: string

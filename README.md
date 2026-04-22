@@ -255,6 +255,61 @@ This will start:
 
 Open the printed URL and try queries like `fridge`, `vancouver`, `mutual-aid`. For a **Bluesky / federated profile** not present in your local SQLite index, enter a **handle** (`user.bsky.social`) or **DID** (`did:plc:…`) alone on the search line; the query node resolves it via Slingshot / public XRPC and returns `app.bsky.actor.profile/self` as a hit.
 
+---
+
+## Deploy publicly (single VM, Docker Compose)
+
+This repo includes a production-ready `docker-compose.yml` that runs the full stack on one host:
+
+- **`indexer`**: HTTP `:3001`, libp2p DHT `:8001`
+- **`query-node`**: HTTP `:3002`, libp2p DHT `:8002`
+- **`web`**: Caddy on `:80/:443` serving the demo and proxying **`/api/* → query-node`**
+
+### Prereqs
+
+- Install Docker + Compose plugin
+- Point a DNS name at the server (A/AAAA record)
+- Allow inbound **80/tcp** + **443/tcp**
+- Optional: allow inbound **8001/tcp** + **8002/tcp** (if you want DHT reachability from other machines)
+
+### Configure environment
+
+On the server (repo root), create `.env` with at least:
+
+```bash
+ATSEARCH_PUBLIC_HOSTNAME=atsearch.yourdomain.com
+```
+
+Recommended:
+
+```bash
+USE_MICROCOSM=true
+MICROCOSM_SLINGSHOT_BASE_URL=https://slingshot.microcosm.blue
+MICROCOSM_CONSTELLATION_BASE_URL=https://constellation.microcosm.blue
+FALLBACK_ATPROTO_XRPC_BASE_URL=https://public.api.bsky.app
+APP_USER_AGENT='at-search-demo/0.1 (public; +https://atsearch.yourdomain.com)'
+
+# Optional: stable pointer signatures across restarts
+# ATSEARCH_NODE_KEY=ed25519_private_key_hex
+```
+
+### Launch
+
+```bash
+docker compose up -d --build
+```
+
+Then:
+
+- **UI**: `https://atsearch.yourdomain.com`
+- **API (proxied)**: `https://atsearch.yourdomain.com/api/health`
+
+### Notes
+
+- The demo UI defaults to calling `window.location.origin + "/api"`; Caddy reverse-proxies that to the query node.
+- SQLite persists in the `atsearch_data` Docker volume.
+- If you do **not** want DHT ports exposed publicly, remove the `8001:8001` / `8002:8002` mappings from `docker-compose.yml`.
+
 ### Manual start
 
 ```bash
