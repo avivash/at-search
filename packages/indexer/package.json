@@ -1,0 +1,36 @@
+{
+  "name": "@atsearch/indexer",
+  "version": "0.1.0",
+  "main": "./dist/index.js",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
+    "seed": "tsx src/seed.ts",
+    "lint": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@atsearch/common": "workspace:*",
+    "@atproto/api": "^0.13.4",
+    "@libp2p/bootstrap": "^10.0.0",
+    "@libp2p/identify": "^2.0.0",
+    "@libp2p/kad-dht": "^12.0.0",
+    "@libp2p/tcp": "^9.0.0",
+    "@chainsafe/libp2p-noise": "^15.0.0",
+    "@chainsafe/libp2p-yamux": "^6.0.0",
+    "better-sqlite3": "^9.4.3",
+    "dotenv": "^16.4.1",
+    "fastify": "^4.26.0",
+    "libp2p": "^1.4.3",
+    "multiformats": "^13.1.0",
+    "ws": "^8.16.0"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.8",
+    "@types/node": "^20.11.0",
+    "@types/ws": "^8.5.10",
+    "tsx": "^4.7.0",
+    "typescript": "^5.3.3"
+  }
+}

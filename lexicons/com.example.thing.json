@@ -1,0 +1,51 @@
+{
+  "lexicon": 1,
+  "id": "com.example.thing",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "A searchable thing record in AT Protocol",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["title", "createdAt"],
+        "properties": {
+          "title": {
+            "type": "string",
+            "maxLength": 300,
+            "description": "Title of the thing"
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 3000,
+            "description": "Description of the thing"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "maxLength": 20,
+            "description": "Tags for categorization"
+          },
+          "location": {
+            "type": "object",
+            "properties": {
+              "lat": { "type": "number" },
+              "lon": { "type": "number" },
+              "geohash": { "type": "string" }
+            },
+            "required": ["lat", "lon", "geohash"],
+            "description": "Geographic location"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "datetime",
+            "description": "Timestamp of record creation"
+          }
+        }
+      }
+    }
+  }
+}

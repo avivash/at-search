@@ -1,0 +1,21 @@
+{
+  "name": "at-search",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Decentralized search and discovery layer for AT Protocol objects",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "bun run --filter '*' build",
+    "dev": "bun run --filter '*' dev",
+    "test": "bun run --filter '*' test",
+    "lint": "bun run --filter '*' lint",
+    "seed": "bun run --filter @atsearch/indexer seed",
+    "demo": "bash scripts/run-demo.sh"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "typescript": "^5.3.3"
+  }
+}

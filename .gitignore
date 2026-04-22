@@ -1,0 +1,13 @@
+node_modules/
+dist/
+*.db
+*.db-journal
+.env
+.env.local
+data/
+coverage/
+.claude/
+.cursor/
+.impeccable.md
+.DS_Store
+*.tsbuildinfo
