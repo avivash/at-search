@@ -53,7 +53,13 @@
     const next = Math.max(0, Math.min(p, pageCount - 1));
     pageIndex = next;
     const main = document.getElementById("main");
-    main?.scrollIntoView({ behavior: "smooth", block: "start" });
+    const sticky = document.getElementById("sticky");
+    if (!main) return;
+
+    const stickyH = sticky?.getBoundingClientRect().height ?? 0;
+    const top =
+      main.getBoundingClientRect().top + window.scrollY - stickyH - 12;
+    window.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
   }
 </script>
 
@@ -62,14 +68,14 @@
 </svelte:head>
 
 <div class="shell">
-  <header class="top">
-    <a href="/" class="wordmark" aria-label="AT Search home">
-      <span class="wordmark-at">AT Search</span>
-    </a>
-    <ThemeToggle />
-  </header>
+  <div class="sticky" id="sticky">
+    <header class="top">
+      <a href="/" class="wordmark" aria-label="AT Search home">
+        <span class="wordmark-at">AT Search</span>
+      </a>
+      <ThemeToggle />
+    </header>
 
-  <main class="main" id="main">
     <div class="search-block">
       <SearchInput
         bind:value={inputValue}
@@ -81,7 +87,9 @@
         <p class="error-banner" role="alert">{error}</p>
       {/if}
     </div>
+  </div>
 
+  <main class="main" id="main">
     {#if response && totalCount > 0}
       <p class="results-meta" aria-live="polite">
         <span class="meta-strong">{totalCount}</span>
@@ -133,6 +141,17 @@
     padding: var(--sp-6) var(--sp-6) var(--sp-12);
   }
 
+  .sticky {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    margin: 0 calc(var(--sp-6) * -1);
+    padding: var(--sp-6) var(--sp-6) var(--sp-3);
+    background: color-mix(in oklch, var(--bg) 92%, transparent);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+  }
+
   .top {
     display: flex;
     align-items: center;
@@ -179,6 +198,7 @@
     font-size: var(--text-xs);
     color: var(--text-dim);
     letter-spacing: 0.01em;
+    padding-top: var(--sp-4);
   }
 
   .meta-strong {
@@ -248,6 +268,11 @@
   @media (max-width: 520px) {
     .shell {
       padding: var(--sp-4) var(--sp-4) var(--sp-8);
+    }
+
+    .sticky {
+      margin: 0 calc(var(--sp-4) * -1);
+      padding: var(--sp-4) var(--sp-4) var(--sp-3);
     }
 
     .top {
