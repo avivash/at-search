@@ -4,6 +4,22 @@ const API =
   (import.meta.env.VITE_QUERY_API_URL as string | undefined)?.trim() ||
   (typeof window !== 'undefined' ? `${window.location.origin}/api` : 'http://localhost:3002')
 
+const SEARCH_TIMEOUT_MS = Number.parseInt(
+  (import.meta.env.VITE_SEARCH_TIMEOUT_MS as string | undefined) ?? '',
+  10,
+)
+const INTERACTIONS_TIMEOUT_MS = Number.parseInt(
+  (import.meta.env.VITE_INTERACTIONS_TIMEOUT_MS as string | undefined) ?? '',
+  10,
+)
+
+const DEFAULT_SEARCH_TIMEOUT_MS = 45_000
+const DEFAULT_INTERACTIONS_TIMEOUT_MS = 30_000
+
+function timeoutMs(value: number, fallback: number): number {
+  return Number.isFinite(value) && value > 0 ? value : fallback
+}
+
 export interface StrongRef {
   uri: string
   cid: string
@@ -50,7 +66,7 @@ export interface SearchResponse {
 
 export async function search(query: string): Promise<SearchResponse> {
   const res = await fetch(`${API}/search?q=${encodeURIComponent(query)}`, {
-    signal: AbortSignal.timeout(15_000),
+    signal: AbortSignal.timeout(timeoutMs(SEARCH_TIMEOUT_MS, DEFAULT_SEARCH_TIMEOUT_MS)),
   })
   if (!res.ok) {
     const body = await res.json().catch(() => ({}))
@@ -77,7 +93,7 @@ export interface PostInteractionsResponse {
 export async function fetchPostInteractions(subjectUri: string): Promise<PostInteractionsResponse> {
   const res = await fetch(
     `${API}/interactions?subjectUri=${encodeURIComponent(subjectUri)}`,
-    { signal: AbortSignal.timeout(20_000) },
+    { signal: AbortSignal.timeout(timeoutMs(INTERACTIONS_TIMEOUT_MS, DEFAULT_INTERACTIONS_TIMEOUT_MS)) },
   )
   if (!res.ok) {
     const body = await res.json().catch(() => ({}))

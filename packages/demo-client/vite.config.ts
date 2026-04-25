@@ -4,7 +4,7 @@ import { defineConfig } from 'vite'
 export default defineConfig({
   plugins: [sveltekit()],
   server: { 
-    allowedHosts: ['andrews-macbook-pro-2.taila47af.ts.net'],
+    allowedHosts: true,
     host: true,
     port: 5173,
     proxy: {
