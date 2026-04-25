@@ -309,6 +309,7 @@ Then:
 - The demo UI defaults to calling `window.location.origin + "/api"`; Caddy reverse-proxies that to the query node.
 - SQLite persists in the `atsearch_data` Docker volume.
 - If you do **not** want DHT ports exposed publicly, remove the `8001:8001` / `8002:8002` mappings from `docker-compose.yml`.
+- If you run another app on the same host and want it to call the search API, bind the query node to **localhost only** and call it at `http://127.0.0.1:<port>`. (The provided `docker-compose.yml` binds it to `127.0.0.1:13002`.)
 
 ### Manual start
 

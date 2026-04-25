@@ -17,9 +17,7 @@ services:
       ATSEARCH_NODE_KEY: "${ATSEARCH_NODE_KEY:-}"
     volumes:
       - atsearch_data:/data
-    ports:
-      - "3001:3001"
-      - "8001:8001"
+    # No public ports by default (keep indexer private to the Docker network).
 
   query-node:
     build:
@@ -38,9 +36,10 @@ services:
       MICROCOSM_CONSTELLATION_BASE_URL: "${MICROCOSM_CONSTELLATION_BASE_URL:-https://constellation.microcosm.blue}"
       FALLBACK_ATPROTO_XRPC_BASE_URL: "${FALLBACK_ATPROTO_XRPC_BASE_URL:-https://public.api.bsky.app}"
       APP_USER_AGENT: "${APP_USER_AGENT:-at-search-demo/0.1 (docker)}"
+    # Expose the API only on localhost so other apps on the droplet can call it
+    # without making it reachable from the public internet.
     ports:
-      - "3002:3002"
-      - "8002:8002"
+      - "127.0.0.1:13002:3002"
 
   web:
     build:
@@ -52,8 +51,8 @@ services:
       ATSEARCH_PUBLIC_HOSTNAME: "${ATSEARCH_PUBLIC_HOSTNAME:-localhost}"
       ATSEARCH_QUERY_UPSTREAM: "http://query-node:3002"
     ports:
-      - "80:80"
-      - "443:443"
+      # Public entrypoint (HTTP only by default). Prefer a domain for HTTPS.
+      - "18080:80"
 
 volumes:
   atsearch_data:
