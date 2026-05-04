@@ -82,9 +82,21 @@ describe('deriveDescriptors', () => {
 })
 
 describe('descriptorToQueryKeys', () => {
-  it('does not add type: keys (would match the full corpus)', () => {
+  it('does not infer type: keys from free-text alone', () => {
     const keys = descriptorToQueryKeys('fridge food')
     expect(keys.some((k) => k.startsWith('type:'))).toBe(false)
+  })
+
+  it('accepts explicit type:<nsid> for lexicon-scoped listing', () => {
+    const keys = descriptorToQueryKeys('type:at.functions.metadata')
+    expect(keys).toContain('type:at.functions.metadata')
+    expect(keys.some((k) => k.startsWith('token:') || k.startsWith('tag:'))).toBe(false)
+  })
+
+  it('accepts collection: as an alias for type:', () => {
+    const keys = descriptorToQueryKeys('collection:at.functions.metadata')
+    expect(keys).toContain('type:at.functions.metadata')
+    expect(keys.some((k) => k.startsWith('token:') || k.startsWith('tag:'))).toBe(false)
   })
 
   it('generates both token and tag candidates', () => {

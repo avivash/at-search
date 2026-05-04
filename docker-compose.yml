@@ -1,8 +1,28 @@
 services:
+  relay:
+    build:
+      context: .
+      dockerfile: Dockerfile.relay
+    environment:
+      # Required for admin endpoints (used to request-crawl your PDS).
+      RELAY_ADMIN_PASSWORD: "${RELAY_ADMIN_PASSWORD:-dummy}"
+      # Keep defaults: sqlite DB under /data/relay
+      RELAY_PERSIST_DIR: "/data/relay/persist"
+      RELAY_REPLAY_WINDOW: "${RELAY_REPLAY_WINDOW:-24h}"
+      LOG_LEVEL: "${RELAY_LOG_LEVEL:-info}"
+    volumes:
+      - atsearch_relay_data:/data/relay
+    ports:
+      # Bind locally; indexer will talk to it over Docker network.
+      - "127.0.0.1:12470:2470"
+      - "127.0.0.1:12471:2471"
+
   indexer:
     build:
       context: .
       dockerfile: Dockerfile.indexer
+    depends_on:
+      - relay
     environment:
       ATSEARCH_HTTP_PORT: "3001"
       ATSEARCH_DHT_PORT: "8001"
@@ -15,6 +35,9 @@ services:
       ATSEARCH_HANDLE: "${ATSEARCH_HANDLE:-}"
       ATSEARCH_PASSWORD: "${ATSEARCH_PASSWORD:-}"
       ATSEARCH_NODE_KEY: "${ATSEARCH_NODE_KEY:-}"
+      # When ATSEARCH_MODE=firehose, point to your local relay:
+      # The Firehose client will connect to ${ATSEARCH_FIREHOSE_URL}/xrpc/com.atproto.sync.subscribeRepos
+      ATSEARCH_FIREHOSE_URL: "${ATSEARCH_FIREHOSE_URL:-http://relay:2470}"
     volumes:
       - atsearch_data:/data
     # No public ports by default (keep indexer private to the Docker network).
@@ -56,4 +79,5 @@ services:
 
 volumes:
   atsearch_data:
+  atsearch_relay_data:
 

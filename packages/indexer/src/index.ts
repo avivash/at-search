@@ -3,6 +3,8 @@ import { openDb } from './db.js'
 import { createDhtNode } from './dht.js'
 import { startServer } from './server.js'
 import { startPolling } from './poller.js'
+import { startFirehose } from './firehose.js'
+import { startRepoFirehose } from './firehoseRepos.js'
 
 // Render sets `PORT`; support it as a fallback.
 const PORT = parseInt(process.env.ATSEARCH_HTTP_PORT ?? process.env.PORT ?? '3001', 10)
@@ -20,12 +22,23 @@ const NODE_KEY = process.env.ATSEARCH_NODE_KEY
  *                Requires ATSEARCH_POLL_DIDS (comma-separated DIDs) and
  *                ATSEARCH_PDS_URL (default: https://bsky.social).
  *
+ *   jetstream  — live ingestion from the public Jetstream websocket relay.
+ *                Useful when you want to discover records across many repos
+ *                without preconfiguring DIDs (e.g. all at.functions.metadata).
+ *
+ *   firehose   — live ingestion from the full atproto repo event stream
+ *                (com.atproto.sync.subscribeRepos). This includes custom lexicons.
+ *
  * Jetstream live ingestion was removed from the default demo path; the query node
  * now hydrates via Slingshot / direct XRPC. See MIGRATION_MICROCOSM.md.
  */
 const MODE = process.env.ATSEARCH_MODE ?? 'local'
 
 const PDS_URL = process.env.ATSEARCH_PDS_URL ?? 'https://bsky.social'
+const JETSTREAM_URL =
+  (process.env.ATSEARCH_JETSTREAM_URL ?? 'wss://jetstream2.us-west.bsky.network').replace(/\/$/, '')
+// @atproto/sync Firehose expects an HTTP(S) service base (it upgrades to WS internally).
+const FIREHOSE_URL = (process.env.ATSEARCH_FIREHOSE_URL ?? 'https://bsky.network').replace(/\/$/, '')
 const BOOTSTRAP_PEERS = process.env.ATSEARCH_DHT_BOOTSTRAP
   ? process.env.ATSEARCH_DHT_BOOTSTRAP.split(',').map((s) => s.trim())
   : []
@@ -47,21 +60,55 @@ async function main() {
 
   if (MODE === 'poll') {
     const dids = (process.env.ATSEARCH_POLL_DIDS ?? '').split(',').filter(Boolean)
+    const collections = (process.env.ATSEARCH_POLL_COLLECTIONS ?? 'com.example.thing')
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean)
     if (dids.length === 0) {
       console.warn('ATSEARCH_MODE=poll but no ATSEARCH_POLL_DIDS set; polling skipped')
     } else {
-      console.log(`Polling ${dids.length} DIDs from ${PDS_URL}`)
+      console.log(`Polling ${dids.length} DIDs from ${PDS_URL} (${collections.join(', ')})`)
       startPolling(db, dhtNode, {
         pdsUrl: PDS_URL,
         dids,
+        collections,
         onIngested: (uri, cid) => console.log(`Indexed: ${uri} @ ${cid}`),
       })
     }
   } else if (MODE === 'jetstream') {
-    // Warn only — Jetstream consumer code remains in ./firehose.ts as a reference snapshot.
-    console.warn(
-      '[indexer] Jetstream ingestion is disabled. Use local+seed or poll. See MIGRATION_MICROCOSM.md.',
+    const collections = (process.env.ATSEARCH_JETSTREAM_COLLECTIONS ?? process.env.ATSEARCH_POLL_COLLECTIONS ?? '')
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean)
+
+    console.log(
+      `Jetstream ingest enabled (${JETSTREAM_URL})` +
+        (collections.length ? `; collections: ${collections.join(', ')}` : '; collections: (defaults)'),
     )
+
+    startFirehose(db, dhtNode, {
+      jetstreamUrl: JETSTREAM_URL,
+      collections: collections.length ? collections : undefined,
+      onStatus: (msg) => console.log(`[jetstream] ${msg}`),
+      onIngested: (uri, cid) => console.log(`Indexed: ${uri} @ ${cid}`),
+    })
+  } else if (MODE === 'firehose') {
+    const collections = (process.env.ATSEARCH_FIREHOSE_COLLECTIONS ?? process.env.ATSEARCH_POLL_COLLECTIONS ?? '')
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean)
+
+    console.log(
+      `Repo firehose ingest enabled (${FIREHOSE_URL})` +
+        (collections.length ? `; collections: ${collections.join(', ')}` : '; collections: (all)'),
+    )
+
+    startRepoFirehose(db, dhtNode, {
+      relayUrl: FIREHOSE_URL,
+      collections: collections.length ? collections : undefined,
+      onStatus: (msg) => console.log(`[firehose] ${msg}`),
+      onIngested: (uri, cid) => console.log(`Indexed: ${uri} @ ${cid}`),
+    })
   } else {
     console.log('Mode=local: no live ingestion. Run the seed script to populate.')
   }

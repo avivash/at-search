@@ -4,7 +4,6 @@ import { ingestRecord } from './ingest.js'
 import { advertiseDescriptor } from './dht.js'
 import type { DhtNode } from './dht.js'
 
-const COLLECTION = 'com.example.thing'
 const POLL_INTERVAL_MS = 30_000
 
 export async function pollPds(
@@ -13,26 +12,33 @@ export async function pollPds(
   opts: {
     pdsUrl: string
     dids: string[]
+    collections?: string[]
     onIngested?: (uri: string, cid: string) => void
   },
 ): Promise<void> {
   const agent = new AtpAgent({ service: opts.pdsUrl })
 
+  const collections = (opts.collections?.length ? opts.collections : ['com.example.thing'])
+    .map((c) => c.trim())
+    .filter(Boolean)
+
   for (const did of opts.dids) {
     try {
-      const res = await agent.com.atproto.repo.listRecords({
-        repo: did,
-        collection: COLLECTION,
-        limit: 100,
-      })
+      for (const collection of collections) {
+        const res = await agent.com.atproto.repo.listRecords({
+          repo: did,
+          collection,
+          limit: 100,
+        })
 
-      for (const record of res.data.records) {
-        const result = ingestRecord(db, record.uri, record.cid, record.value)
-        if (result) {
-          for (const key of result.descriptors) {
-            await advertiseDescriptor(dhtNode, key)
+        for (const record of res.data.records) {
+          const result = ingestRecord(db, record.uri, record.cid, record.value)
+          if (result) {
+            for (const key of result.descriptors) {
+              await advertiseDescriptor(dhtNode, key)
+            }
+            opts.onIngested?.(result.uri, result.cid)
           }
-          opts.onIngested?.(result.uri, result.cid)
         }
       }
     } catch (err) {
@@ -47,6 +53,7 @@ export function startPolling(
   opts: {
     pdsUrl: string
     dids: string[]
+    collections?: string[]
     onIngested?: (uri: string, cid: string) => void
   },
 ): () => void {

@@ -119,12 +119,21 @@ export function deriveDescriptorsFromProfile(
 
 /**
  * Translate a free-text query into descriptor keys to look up in the index.
- * Does NOT include type: keys — those would match the entire corpus.
+ *
+ * Free-text tokens only map to `token:` / `tag:` (see {@link tokenize}).
+ * Additionally, an explicit lexicon filter `type:<nsid>` or `collection:<nsid>`
+ * adds `type:<nsid>` — that matches every indexed record with that `$type`,
+ * which is the intended way to list a niche collection (e.g. `at.functions.metadata`).
  */
 export function descriptorToQueryKeys(query: string): DescriptorKey[] {
   const keys = new Set<DescriptorKey>()
-  // type: keys are intentionally excluded — they match every record of that
-  // type and would return the full corpus regardless of the query.
+  const trimmed = query.trim()
+  const typeOrCollection = trimmed.match(/^(?:type|collection):([a-z0-9._-]+)$/i)
+  if (typeOrCollection) {
+    // Strict filter: when the user explicitly asks for a lexicon type, do not
+    // also include free-text tokens (which would mix in unrelated results).
+    return [`type:${typeOrCollection[1]!.toLowerCase()}`]
+  }
   for (const token of tokenize(query)) {
     keys.add(`token:${token}`)
     keys.add(`tag:${token}`)

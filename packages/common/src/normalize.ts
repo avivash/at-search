@@ -1,4 +1,4 @@
-import type { IndexedRecord } from './types.js'
+import { buildAtUri, type IndexedRecord } from './types.js'
 
 /**
  * Normalise a raw AT Proto record into the IndexedRecord shape.
@@ -25,7 +25,103 @@ export function normalizeRecord(
     return normalizeThing(did, r)
   }
 
-  return null
+  if (collection === 'at.functions.metadata') {
+    return normalizeFunctionsMetadata(did, rkey, r)
+  }
+
+  // Best-effort fallback for other lexicons (e.g. custom app records).
+  return normalizeGeneric(did, collection, r)
+}
+
+function normalizeFunctionsMetadata(
+  did: string,
+  rkey: string,
+  r: Record<string, unknown>,
+): IndexedRecord | null {
+  const name = typeof r.name === 'string' ? r.name.trim() : ''
+  if (!name) return null
+
+  const version = typeof r.version === 'string' ? r.version.trim() : ''
+  const title = version ? `${name} v${version}` : name
+
+  const baseDesc =
+    typeof r.description === 'string' && r.description.trim() ? r.description.trim() : undefined
+
+  const mode = typeof r.mode === 'string' ? r.mode.trim() : ''
+  const bits: string[] = []
+  if (mode) bits.push(`Mode: ${mode}.`)
+  if (typeof r.maxMemoryMb === 'number') bits.push(`Max memory: ${r.maxMemoryMb} MB.`)
+  if (typeof r.maxDurationMs === 'number') bits.push(`Max duration: ${r.maxDurationMs} ms.`)
+  if (typeof r.public === 'boolean') bits.push(r.public ? 'Public.' : 'Private.')
+
+  const allowedHosts = r.allowedHosts
+  if (Array.isArray(allowedHosts) && allowedHosts.length > 0) {
+    const hosts = allowedHosts
+      .filter((h): h is string => typeof h === 'string' && h.trim().length > 0)
+      .slice(0, 8)
+    if (hosts.length > 0) {
+      const more = allowedHosts.length > 8 ? ' …' : ''
+      bits.push(`Allowed hosts: ${hosts.join(', ')}${more}.`)
+    }
+  }
+
+  const atUri = buildAtUri(did, 'at.functions.metadata', rkey)
+  bits.push(`AT URI: ${atUri}.`)
+
+  const tail = bits.length > 0 ? `\n\n${bits.join(' ')}` : ''
+  const description =
+    baseDesc !== undefined ? baseDesc + tail : bits.length > 0 ? bits.join(' ').trim() : undefined
+
+  const tags: string[] = ['at-functions', 'wasm']
+  if (mode) tags.push(mode.toLowerCase())
+
+  return {
+    $type: 'at.functions.metadata',
+    title,
+    description,
+    tags,
+    author: { did },
+    createdAt:
+      typeof r.createdAt === 'string' && r.createdAt.trim()
+        ? r.createdAt
+        : new Date().toISOString(),
+  }
+}
+
+function normalizeGeneric(did: string, collection: string, r: Record<string, unknown>): IndexedRecord | null {
+  const $type = typeof r.$type === 'string' ? r.$type : collection
+
+  const title =
+    (typeof r.name === 'string' && r.name.trim()) ||
+    (typeof r.title === 'string' && r.title.trim()) ||
+    (typeof r.displayName === 'string' && r.displayName.trim()) ||
+    ''
+
+  const description =
+    (typeof r.description === 'string' && r.description.trim()) ||
+    (typeof r.summary === 'string' && r.summary.trim()) ||
+    (typeof r.text === 'string' && r.text.trim()) ||
+    undefined
+
+  // If there is no meaningful text, skip indexing.
+  if (!title && !description) return null
+
+  const tags: string[] = []
+  if (Array.isArray(r.tags)) {
+    for (const t of r.tags) {
+      if (typeof t === 'string' && t.trim()) tags.push(t.trim().toLowerCase())
+    }
+  }
+
+  return {
+    $type,
+    title: title || did,
+    description: description || undefined,
+    tags: tags.length ? tags : undefined,
+    author: { did },
+    createdAt: typeof r.createdAt === 'string' ? r.createdAt : new Date().toISOString(),
+    url: typeof r.url === 'string' ? r.url : undefined,
+  }
 }
 
 function normalizePost(did: string, rkey: string, r: Record<string, unknown>): IndexedRecord | null {

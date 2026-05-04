@@ -23,27 +23,40 @@ export async function buildServer(dhtNode: DhtNode | null) {
     },
   }))
 
-  fastify.get<{ Querystring: { q?: string } }>('/search', async (request, reply) => {
-    const q = request.query.q
-    if (!q || q.trim().length === 0) {
-      return reply.status(400).send({ error: 'Missing query parameter: q' })
-    }
+  fastify.get<{ Querystring: { q?: string; collection?: string } }>(
+    '/search',
+    async (request, reply) => {
+      const q = request.query.q
+      if (!q || q.trim().length === 0) {
+        return reply.status(400).send({ error: 'Missing query parameter: q' })
+      }
 
-    const start = Date.now()
-    const results = await runSearch(services, {
-      query: q.trim(),
-      dhtNode,
-      indexerUrls: services.env.indexerUrls,
-      verifyRecords: true,
-    })
-    const took = Date.now() - start
+      const collection = request.query.collection?.trim()
+      const needle =
+        collection && collection.length > 0 ? `/${collection}/` : null
 
-    return {
-      query: q.trim(),
-      results,
-      took,
-    }
-  })
+      const start = Date.now()
+      let results = await runSearch(services, {
+        query: q.trim(),
+        dhtNode,
+        indexerUrls: services.env.indexerUrls,
+        verifyRecords: true,
+      })
+
+      if (needle) {
+        results = results.filter((r) => r.ref.uri.includes(needle))
+      }
+
+      const took = Date.now() - start
+
+      return {
+        query: q.trim(),
+        ...(collection ? { collection } : {}),
+        results,
+        took,
+      }
+    },
+  )
 
   fastify.get<{ Querystring: { uri?: string; cid?: string } }>(
     '/resolve',

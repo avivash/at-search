@@ -343,6 +343,7 @@ bun run dev -- --port 5173
 ATSEARCH_MODE=poll \
 ATSEARCH_PDS_URL=https://bsky.social \
 ATSEARCH_POLL_DIDS=did:plc:yourDid \
+ATSEARCH_POLL_COLLECTIONS=com.example.thing \
 ATSEARCH_DB_PATH=./data/indexer.db \
 ATSEARCH_HTTP_PORT=3001 \
   bun run --filter @atsearch/indexer dev

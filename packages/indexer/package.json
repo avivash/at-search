@@ -13,6 +13,9 @@
   "dependencies": {
     "@atsearch/common": "workspace:*",
     "@atproto/api": "^0.13.4",
+    "@atproto/identity": "^0.4.12",
+    "@atproto/repo": "^0.9.1",
+    "@atproto/sync": "^0.2.2",
     "@libp2p/bootstrap": "^10.0.0",
     "@libp2p/identify": "^2.0.0",
     "@libp2p/kad-dht": "^12.0.0",
