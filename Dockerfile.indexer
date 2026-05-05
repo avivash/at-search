@@ -8,12 +8,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY pnpm-workspace.yaml package.json tsconfig.json ./
 COPY packages ./packages
 
-# Install workspace deps (incl. better-sqlite3 for Node 20)
-RUN corepack enable && corepack prepare pnpm@9 --activate
-RUN pnpm install --no-frozen-lockfile --node-linker=hoisted
+# Install workspace deps
+RUN corepack enable && corepack prepare pnpm@10.27.0 --activate
+# pnpm may ignore native build scripts unless explicitly allowed; indexer needs better-sqlite3 bindings.
+# Use the default node linker so package-local bins (e.g. tsc) resolve correctly in workspace builds.
+RUN pnpm install --no-frozen-lockfile --dangerously-allow-all-builds
 
-RUN pnpm -C packages/common build && \
-    pnpm -C packages/indexer build
+RUN pnpm --filter @atsearch/common run build && \
+    pnpm --filter @atsearch/indexer run build
 
 # Optional: seed on build-time? (we do runtime seed for freshness)
 
