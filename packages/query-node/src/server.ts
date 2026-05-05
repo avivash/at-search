@@ -8,11 +8,27 @@ import { getNodePeerId } from './dht.js'
 const services = createServices()
 
 function normalizeHostname(input: string): string | null {
-  const s = input.trim().toLowerCase()
+  let s = input.trim()
   if (!s) return null
-  // Hostname only (no scheme, no path, no port)
-  if (s.includes('://') || s.includes('/') || s.includes('@') || s.includes('?') || s.includes('#')) return null
-  if (s.includes(':')) return null
+
+  // Allow users to paste full URLs; extract hostname.
+  try {
+    if (/^https?:\/\//i.test(s)) {
+      s = new URL(s).hostname
+    }
+  } catch {
+    // ignore parse failure; fall back to best-effort below
+  }
+
+  s = s.trim().toLowerCase()
+  if (!s) return null
+  // Best-effort cleanup if someone pasted a path or port without a scheme.
+  s = s.split('/')[0] ?? s
+  s = s.split(':')[0] ?? s
+  s = s.replace(/^@+/, '')
+
+  // Hostname only (no scheme, no path)
+  if (s.includes('://') || s.includes('@') || s.includes('?') || s.includes('#')) return null
   if (s === 'localhost' || s.endsWith('.localhost')) return null
   // Basic “looks like a DNS name” check
   if (!/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$/.test(s)) return null
