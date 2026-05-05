@@ -101,25 +101,53 @@ function schemaSummary(schema: unknown): string {
   if (typeof schema !== 'object' || schema === null) return 'unknown'
   const s = schema as Record<string, unknown>
 
+  function typeSummary(x: unknown, depth = 0): string {
+    if (depth > 2) return '…'
+    if (typeof x !== 'object' || x === null) return 'unknown'
+    const o = x as Record<string, unknown>
+
+    const t = typeof o.type === 'string' ? o.type : undefined
+    if (t === 'string' || t === 'number' || t === 'integer' || t === 'boolean' || t === 'null') {
+      return t
+    }
+
+    if (t === 'array') {
+      return `${typeSummary(o.items, depth + 1)}[]`
+    }
+
+    if (t === 'object') {
+      const props = o.properties
+      if (typeof props !== 'object' || props === null) return 'object'
+      const propObj = props as Record<string, unknown>
+      const entries = Object.entries(propObj).slice(0, 6)
+      const more = Object.keys(propObj).length > 6 ? ', …' : ''
+      const inner = entries
+        .map(([k, v]) => `${k}: ${typeSummary(v, depth + 1)}`)
+        .join(', ')
+      return inner ? `{ ${inner}${more} }` : 'object'
+    }
+
+    if (Array.isArray(o.oneOf)) return 'oneOf'
+    if (Array.isArray(o.anyOf)) return 'anyOf'
+    if (Array.isArray(o.allOf)) return 'allOf'
+    return t ?? 'schema'
+  }
+
   const type = typeof s.type === 'string' ? s.type : undefined
   if (type === 'object') {
     const props = s.properties
     if (typeof props === 'object' && props !== null) {
-      const keys = Object.keys(props as Record<string, unknown>).slice(0, 6)
-      const more = Object.keys(props as Record<string, unknown>).length > 6 ? ', …' : ''
-      return keys.length ? `{ ${keys.join(', ')}${more} }` : 'object'
+      const propObj = props as Record<string, unknown>
+      const entries = Object.entries(propObj).slice(0, 6)
+      const more = Object.keys(propObj).length > 6 ? ', …' : ''
+      const inner = entries.map(([k, v]) => `${k}: ${typeSummary(v, 1)}`).join(', ')
+      return inner ? `{ ${inner}${more} }` : 'object'
     }
     return 'object'
   }
 
   if (type === 'array') {
-    const items = s.items
-    if (typeof items === 'object' && items !== null) {
-      const it = items as Record<string, unknown>
-      const itType = typeof it.type === 'string' ? it.type : 'unknown'
-      return `${itType}[]`
-    }
-    return 'array'
+    return `${typeSummary(s.items, 1)}[]`
   }
 
   if (type) return type
