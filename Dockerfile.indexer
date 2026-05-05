@@ -24,6 +24,7 @@ WORKDIR /app
 ENV NODE_ENV=production
 
 COPY --from=build /app/node_modules ./node_modules
+COPY --from=build /app/packages/indexer/node_modules ./packages/indexer/node_modules
 COPY --from=build /app/packages/common/dist ./packages/common/dist
 COPY --from=build /app/packages/indexer/dist ./packages/indexer/dist
 COPY --from=build /app/packages/indexer/package.json ./packages/indexer/package.json
