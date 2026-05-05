@@ -35,9 +35,10 @@ services:
       ATSEARCH_HANDLE: "${ATSEARCH_HANDLE:-}"
       ATSEARCH_PASSWORD: "${ATSEARCH_PASSWORD:-}"
       ATSEARCH_NODE_KEY: "${ATSEARCH_NODE_KEY:-}"
-      # When ATSEARCH_MODE=firehose, point to your local relay:
-      # The Firehose client will connect to ${ATSEARCH_FIREHOSE_URL}/xrpc/com.atproto.sync.subscribeRepos
+      # Firehose: default local relay; set ATSEARCH_FIREHOSE_URL=https://bsky.network in .env for network-wide discovery.
+      # Optional: ATSEARCH_FIREHOSE_COLLECTIONS=at.functions.metadata (comma-separated) to filter ingest.
       ATSEARCH_FIREHOSE_URL: "${ATSEARCH_FIREHOSE_URL:-http://relay:2470}"
+      ATSEARCH_FIREHOSE_COLLECTIONS: "${ATSEARCH_FIREHOSE_COLLECTIONS:-}"
     volumes:
       - atsearch_data:/data
     # No public ports by default (keep indexer private to the Docker network).
