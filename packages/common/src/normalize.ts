@@ -117,7 +117,15 @@ function schemaSummary(schema: unknown): string {
 
     if (t === 'object') {
       const props = o.properties
-      if (typeof props !== 'object' || props === null) return 'object'
+      if (typeof props !== 'object' || props === null) {
+        const ap = o.additionalProperties
+        if (ap === true) return 'Record<string, unknown>'
+        if (ap === false) return '{}'
+        if (typeof ap === 'object' && ap !== null) {
+          return `Record<string, ${typeSummary(ap, depth + 1)}>`
+        }
+        return 'object'
+      }
       const propObj = props as Record<string, unknown>
       const entries = Object.entries(propObj).slice(0, 6)
       const more = Object.keys(propObj).length > 6 ? ', …' : ''
@@ -143,6 +151,10 @@ function schemaSummary(schema: unknown): string {
       const inner = entries.map(([k, v]) => `${k}: ${typeSummary(v, 1)}`).join(', ')
       return inner ? `{ ${inner}${more} }` : 'object'
     }
+    const ap = s.additionalProperties
+    if (ap === true) return 'Record<string, unknown>'
+    if (ap === false) return '{}'
+    if (typeof ap === 'object' && ap !== null) return `Record<string, ${typeSummary(ap, 1)}>`
     return 'object'
   }
 
