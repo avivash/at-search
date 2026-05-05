@@ -29,8 +29,8 @@ services:
       ATSEARCH_DB_PATH: "/data/indexer.db"
       # For public hosts, allow libp2p to listen on all interfaces.
       ATSEARCH_LIBP2P_LISTEN_HOST: "0.0.0.0"
-      # Optional: poll mode credentials (see README)
-      ATSEARCH_MODE: "${ATSEARCH_MODE:-local}"
+      # local = no ingestion (empty index). firehose = consume relay (this stack). poll = listRecords.
+      ATSEARCH_MODE: "${ATSEARCH_MODE:-firehose}"
       ATSEARCH_PDS_URL: "${ATSEARCH_PDS_URL:-https://bsky.social}"
       ATSEARCH_HANDLE: "${ATSEARCH_HANDLE:-}"
       ATSEARCH_PASSWORD: "${ATSEARCH_PASSWORD:-}"
@@ -61,8 +61,9 @@ services:
       APP_USER_AGENT: "${APP_USER_AGENT:-at-search-demo/0.1 (docker)}"
     # Expose the API only on localhost so other apps on the droplet can call it
     # without making it reachable from the public internet.
+    # Override if 13002 is already taken, e.g. ATSEARCH_QUERY_HOSTPORT=127.0.0.1:13003
     ports:
-      - "127.0.0.1:13002:3002"
+      - "${ATSEARCH_QUERY_HOSTPORT:-127.0.0.1:13002}:3002"
 
   web:
     build:
