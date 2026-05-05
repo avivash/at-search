@@ -54,6 +54,14 @@ function normalizeFunctionsMetadata(
   if (typeof r.maxDurationMs === 'number') bits.push(`Max duration: ${r.maxDurationMs} ms.`)
   if (typeof r.public === 'boolean') bits.push(r.public ? 'Public.' : 'Private.')
 
+  // Optional schema summaries (kept lightweight; stored as human-readable text).
+  if (typeof r.inputSchema === 'object' && r.inputSchema !== null) {
+    bits.push(`Args: ${schemaSummary(r.inputSchema as unknown)}.`)
+  }
+  if (typeof r.outputSchema === 'object' && r.outputSchema !== null) {
+    bits.push(`Returns: ${schemaSummary(r.outputSchema as unknown)}.`)
+  }
+
   const allowedHosts = r.allowedHosts
   if (Array.isArray(allowedHosts) && allowedHosts.length > 0) {
     const hosts = allowedHosts
@@ -86,6 +94,38 @@ function normalizeFunctionsMetadata(
         ? r.createdAt
         : new Date().toISOString(),
   }
+}
+
+function schemaSummary(schema: unknown): string {
+  // Try to extract a compact “shape” from JSON Schema-like objects.
+  if (typeof schema !== 'object' || schema === null) return 'unknown'
+  const s = schema as Record<string, unknown>
+
+  const type = typeof s.type === 'string' ? s.type : undefined
+  if (type === 'object') {
+    const props = s.properties
+    if (typeof props === 'object' && props !== null) {
+      const keys = Object.keys(props as Record<string, unknown>).slice(0, 6)
+      const more = Object.keys(props as Record<string, unknown>).length > 6 ? ', …' : ''
+      return keys.length ? `{ ${keys.join(', ')}${more} }` : 'object'
+    }
+    return 'object'
+  }
+
+  if (type === 'array') {
+    const items = s.items
+    if (typeof items === 'object' && items !== null) {
+      const it = items as Record<string, unknown>
+      const itType = typeof it.type === 'string' ? it.type : 'unknown'
+      return `${itType}[]`
+    }
+    return 'array'
+  }
+
+  if (type) return type
+  if (Array.isArray(s.oneOf)) return 'oneOf'
+  if (Array.isArray(s.anyOf)) return 'anyOf'
+  return 'schema'
 }
 
 function normalizeGeneric(did: string, collection: string, r: Record<string, unknown>): IndexedRecord | null {
