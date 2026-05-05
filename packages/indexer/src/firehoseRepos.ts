@@ -1,24 +1,10 @@
 import type Database from 'better-sqlite3'
 import { IdResolver } from '@atproto/identity'
-import { MemoryBlockstore, Repo } from '@atproto/repo'
 import { Firehose } from '@atproto/sync'
 import type { CommitEvt, Event } from '@atproto/sync'
 import { ingestRecord } from './ingest.js'
 import { advertiseDescriptor } from './dht.js'
 import type { DhtNode } from './dht.js'
-
-/** Mirrors @atproto/sync Firehose collection filter (exact NSIDs or `prefix.*`). */
-function collectionMatches(patterns: string[] | undefined, collection: string): boolean {
-  if (!patterns?.length) return true
-  for (const pattern of patterns) {
-    if (pattern.endsWith('.*')) {
-      if (collection.startsWith(pattern.slice(0, -2))) return true
-    } else if (pattern === collection) {
-      return true
-    }
-  }
-  return false
-}
 
 export interface RepoFirehoseOptions {
   /** Relay base URL (no path). Example: wss://bsky.network */
@@ -59,31 +45,11 @@ export function startRepoFirehose(
     // Important: allow custom lexicons without signature validation / DID doc lookups.
     unauthenticatedCommits: true,
     unauthenticatedHandles: true,
+    // Public relays emit `#sync` with incremental/partial CARs; Repo.load needs a full MST.
+    // Ingestion uses `#commit` ops only (blocks include records for those ops).
+    excludeSync: true,
     filterCollections: opts.collections?.length ? opts.collections : undefined,
     handleEvent: async (evt: Event) => {
-      // Network relays often emit `#sync` (full repo CAR). Those never reach this handler as create/update.
-      if (evt.event === 'sync') {
-        try {
-          const storage = new MemoryBlockstore(evt.blocks)
-          const repo = await Repo.load(storage, evt.cid)
-          if (repo.did !== evt.did) {
-            opts.onStatus?.(`Firehose sync: DID mismatch (evt ${evt.did}, repo ${repo.did}); skipping`)
-            return
-          }
-          for await (const rec of repo.walkRecords()) {
-            if (!collectionMatches(opts.collections, rec.collection)) continue
-            await ingestOne(repo.did, rec.collection, rec.rkey, rec.cid.toString(), rec.record)
-          }
-        } catch (err) {
-          const msg = err instanceof Error ? err.message : String(err)
-          opts.onStatus?.(`Firehose sync parse skipped for ${evt.did}: ${msg}`)
-          if (process.env.DEBUG_FIREHOSE) {
-            console.debug('firehose sync error', evt.did, err)
-          }
-        }
-        return
-      }
-
       if (evt.event !== 'create' && evt.event !== 'update') return
       const c = evt as Extract<CommitEvt, { event: 'create' | 'update' }>
       await ingestOne(c.did, c.collection, c.rkey, c.cid.toString(), c.record)
