@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Run the full AT Search demo stack locally (Bun + bash).
+# Run the full AT Search demo stack locally (pnpm + bash).
 # Ctrl+C stops all processes.
 
 set -euo pipefail
@@ -25,8 +25,8 @@ export MICROCOSM_CONSTELLATION_BASE_URL="${MICROCOSM_CONSTELLATION_BASE_URL:-htt
 export FALLBACK_ATPROTO_XRPC_BASE_URL="${FALLBACK_ATPROTO_XRPC_BASE_URL:-https://public.api.bsky.app}"
 export APP_USER_AGENT="${APP_USER_AGENT:-at-search-demo/0.1 (run-demo.sh)}"
 
-# better-sqlite3 ships prebuilt / native bindings for Node, not Bun's runtime ABI.
-# Run the compiled indexer with Node; Bun still drives install/build/seed in this script.
+# better-sqlite3 ships prebuilt / native bindings for Node.
+# Run the compiled indexer with Node; pnpm drives install/build/seed in this script.
 NODE_BIN="${NODE_BIN:-$(command -v node || true)}"
 if [ -z "$NODE_BIN" ]; then
   echo "ERROR: \`node\` not found on PATH. The indexer needs Node to load better-sqlite3."
@@ -73,17 +73,17 @@ require_free_port "Demo (Vite)" "$DEMO_PORT"
 mkdir -p "$ROOT/data"
 
 echo "Building @atsearch/common..."
-bun run --filter @atsearch/common build
+pnpm --filter @atsearch/common run build
 
 echo "Building @atsearch/indexer..."
-bun run --filter @atsearch/indexer build
+pnpm --filter @atsearch/indexer run build
 
 echo "Building @atsearch/query-node..."
-bun run --filter @atsearch/query-node build
+pnpm --filter @atsearch/query-node run build
 
 echo ""
 echo "Seeding database..."
-ATSEARCH_DB_PATH="$ATSEARCH_DB_PATH" bun run --filter @atsearch/indexer seed || true
+ATSEARCH_DB_PATH="$ATSEARCH_DB_PATH" pnpm --filter @atsearch/indexer run seed || true
 
 echo ""
 echo "Starting services..."
@@ -117,7 +117,7 @@ for _ in 1 2 3 4 5 6 7 8 9 10; do
   if ! kill -0 "$INDEXER_PID" 2>/dev/null; then
     echo ""
     echo "ERROR: Indexer exited before HTTP came up. Common causes:"
-    echo "  - better-sqlite3 / native module ABI (indexer must run with Node, not Bun — see script header)"
+    echo "  - better-sqlite3 / native module ABI (indexer must run with Node — see script header)"
     echo "  - libp2p cannot bind DHT port ${ATSEARCH_DHT_PORT} (try another ATSEARCH_DHT_PORT)"
     echo "  - ATSEARCH_LIBP2P_LISTEN_HOST (default 127.0.0.1) — see README"
     exit 1
@@ -131,7 +131,7 @@ if ! curl -sf "http://localhost:${INDEXER_HTTP_PORT}/health" >/dev/null 2>&1; th
 fi
 
 _HEALTH_JSON=$(curl -sf "http://localhost:${INDEXER_HTTP_PORT}/health" || true)
-INDEXER_MULTIADDR=$(H="$_HEALTH_JSON" bun -e 'try{console.log(JSON.parse(process.env.H||"{}").peerId||"")}catch{console.log("")}')
+INDEXER_MULTIADDR=$(H="$_HEALTH_JSON" node -e 'try{console.log(JSON.parse(process.env.H||"{}").peerId||"")}catch{console.log("")}')
 
 if [ -n "$INDEXER_MULTIADDR" ]; then
   echo "Indexer peer ID: $INDEXER_MULTIADDR"
@@ -146,7 +146,7 @@ MICROCOSM_SLINGSHOT_BASE_URL="$MICROCOSM_SLINGSHOT_BASE_URL" \
 MICROCOSM_CONSTELLATION_BASE_URL="$MICROCOSM_CONSTELLATION_BASE_URL" \
 FALLBACK_ATPROTO_XRPC_BASE_URL="$FALLBACK_ATPROTO_XRPC_BASE_URL" \
 APP_USER_AGENT="$APP_USER_AGENT" \
-  bun packages/query-node/dist/index.js &
+  node packages/query-node/dist/index.js &
 QUERY_PID=$!
 echo "Query node started (PID $QUERY_PID)"
 
@@ -167,7 +167,7 @@ if ! curl -sf "http://localhost:${QUERY_PORT}/health" | grep -q microcosm; then
 fi
 
 VITE_QUERY_PROXY_TARGET="http://127.0.0.1:${QUERY_PORT}" \
-  bun run --filter @atsearch/demo-client dev -- --port "$DEMO_PORT" &
+  pnpm --filter @atsearch/demo-client run dev -- --port "$DEMO_PORT" &
 CLIENT_PID=$!
 echo "Demo client started (PID $CLIENT_PID)"
 

@@ -1,7 +1,7 @@
 import { json, text } from "@sveltejs/kit";
 import { SvelteKitError, HttpError } from "@sveltejs/kit/internal";
 import { with_request_store } from "@sveltejs/kit/internal/server";
-import { t as text_decoder, c as base64_decode, b as base64_encode } from "./utils.js";
+import { t as text_encoder, b as base64_encode, a as base64_decode } from "./utils.js";
 function noop() {
 }
 function once(fn) {
@@ -349,6 +349,10 @@ function unflatten(parsed, revivers) {
   return hydrate(0);
 }
 function stringify$1(value, reducers) {
+  const stringified = run(false, value, reducers);
+  return typeof stringified === "string" ? stringified : `[${stringified.join(",")}]`;
+}
+function run(async, value, reducers) {
   const stringified = [];
   const indexes = /* @__PURE__ */ new Map();
   const custom = [];
@@ -359,7 +363,7 @@ function stringify$1(value, reducers) {
   }
   const keys = [];
   let p = 0;
-  function flatten(thing) {
+  function flatten(thing, index2) {
     if (thing === void 0) return UNDEFINED;
     if (Number.isNaN(thing)) return NAN;
     if (thing === Infinity) return POSITIVE_INFINITY;
@@ -369,7 +373,7 @@ function stringify$1(value, reducers) {
       /** @type {number} */
       indexes.get(thing)
     );
-    const index2 = p++;
+    index2 ??= p++;
     indexes.set(thing, index2);
     for (const { key, fn } of custom) {
       const value2 = fn(thing);
@@ -386,6 +390,15 @@ function stringify$1(value, reducers) {
     let str = "";
     if (is_primitive(thing)) {
       str = stringify_primitive(thing);
+    } else if (typeof thing.then === "function") {
+      {
+        throw new DevalueError(
+          `Cannot stringify a Promise or thenable — use stringifyAsync instead`,
+          keys,
+          thing,
+          value
+        );
+      }
     } else {
       const type = get_type(thing);
       switch (type) {
@@ -550,7 +563,7 @@ function stringify$1(value, reducers) {
   }
   const index = flatten(value);
   if (index < 0) return `${index}`;
-  return `[${stringified.join(",")}]`;
+  return stringified;
 }
 function stringify_primitive(thing) {
   const type = typeof thing;
@@ -560,6 +573,7 @@ function stringify_primitive(thing) {
   if (type === "bigint") return `["BigInt","${thing}"]`;
   return String(thing);
 }
+const decoder = new TextDecoder();
 function set_nested_value(object, path_string, value) {
   if (path_string.startsWith("n:")) {
     path_string = path_string.slice(2);
@@ -680,7 +694,7 @@ async function deserialize_binary_form(request) {
   if (file_offsets_length > 0) {
     const file_offsets_buffer = await get_buffer(HEADER_BYTES + data_length, file_offsets_length);
     if (!file_offsets_buffer) throw deserialize_error("file offset table too short");
-    const parsed_offsets = JSON.parse(text_decoder.decode(file_offsets_buffer));
+    const parsed_offsets = JSON.parse(decoder.decode(file_offsets_buffer));
     if (!Array.isArray(parsed_offsets) || parsed_offsets.some((n) => typeof n !== "number" || !Number.isInteger(n) || n < 0)) {
       throw deserialize_error("invalid file offset table");
     }
@@ -689,7 +703,7 @@ async function deserialize_binary_form(request) {
     files_start_offset = HEADER_BYTES + data_length + file_offsets_length;
   }
   const file_spans = [];
-  const [data, meta] = parse(text_decoder.decode(data_buffer), {
+  const [data, meta] = parse(decoder.decode(data_buffer), {
     File: ([name, type, size, last_modified, index]) => {
       if (typeof name !== "string" || typeof type !== "string" || typeof size !== "number" || typeof last_modified !== "number" || typeof index !== "number") {
         throw deserialize_error("invalid file metadata");
@@ -845,7 +859,7 @@ class LazyFile {
     });
   }
   async text() {
-    return text_decoder.decode(await this.arrayBuffer());
+    return decoder.decode(await this.arrayBuffer());
   }
 }
 const path_regex = /^[a-zA-Z_$]\w*(\.[a-zA-Z_$]\w*|\[\d+\])*$/;
@@ -868,8 +882,8 @@ function deep_set(object, keys, value) {
     const key = keys[i];
     check_prototype_pollution(key);
     const is_array = /^\d+$/.test(keys[i + 1]);
-    const exists = Object.hasOwn(current, key);
-    const inner = current[key];
+    const inner = Object.hasOwn(current, key) ? current[key] : void 0;
+    const exists = inner != null;
     if (exists && is_array !== Array.isArray(inner)) {
       throw new Error(`Invalid array key ${keys[i + 1]}`);
     }
@@ -1001,6 +1015,22 @@ function create_field_proxy(target, get_input, set_input, get_issues, path = [])
             });
           }
           if (type === "checkbox" || type === "radio") {
+            if (type === "checkbox" && !is_array) {
+              return Object.defineProperties(base_props, {
+                defaultChecked: {
+                  enumerable: true,
+                  get() {
+                    return input_value;
+                  }
+                },
+                checked: {
+                  enumerable: true,
+                  get() {
+                    return get_value() ?? input_value;
+                  }
+                }
+              });
+            }
             return Object.defineProperties(base_props, {
               value: { value: input_value ?? "on", enumerable: true },
               checked: {
@@ -1010,10 +1040,7 @@ function create_field_proxy(target, get_input, set_input, get_issues, path = [])
                   if (type === "radio") {
                     return value === input_value;
                   }
-                  if (is_array) {
-                    return (value ?? []).includes(input_value);
-                  }
-                  return value;
+                  return (value ?? []).includes(input_value);
                 }
               }
             });
@@ -1051,6 +1078,12 @@ function create_field_proxy(target, get_input, set_input, get_issues, path = [])
             });
           }
           return Object.defineProperties(base_props, {
+            defaultValue: {
+              enumerable: true,
+              get() {
+                return input_value;
+              }
+            },
             value: {
               enumerable: true,
               get() {
@@ -1420,12 +1453,12 @@ function stringify_remote_arg(value, transport, sort = true) {
     value,
     create_remote_arg_reducers(transport, sort, /* @__PURE__ */ new Map())
   );
-  const bytes = new TextEncoder().encode(json_string);
+  const bytes = text_encoder.encode(json_string);
   return base64_encode(bytes).replaceAll("=", "").replaceAll("+", "-").replaceAll("/", "_");
 }
 function parse_remote_arg(string, transport) {
   if (!string) return void 0;
-  const json_string = text_decoder.decode(
+  const json_string = new TextDecoder().decode(
     // no need to add back `=` characters, atob can handle it
     base64_decode(string.replaceAll("-", "+").replaceAll("_", "/"))
   );
@@ -1460,18 +1493,18 @@ export {
   handle_fatal_error as H,
   INVALIDATED_PARAM as I,
   format_server_error as J,
-  stringify_remote_arg as K,
-  unfriendly_hydratable as L,
-  parse as M,
-  MUTATIVE_METHODS as N,
-  create_field_proxy as O,
+  unfriendly_hydratable as K,
+  parse as L,
+  MUTATIVE_METHODS as M,
+  create_field_proxy as N,
+  normalize_issue as O,
   PAGE_METHODS as P,
-  normalize_issue as Q,
-  set_nested_value as R,
+  set_nested_value as Q,
+  flatten_issues as R,
   SVELTE_KIT_ASSETS as S,
   TRAILING_SLASH_PARAM as T,
-  flatten_issues as U,
-  deep_set as V,
+  deep_set as U,
+  stringify_remote_arg as V,
   is_plain_object$1 as a,
   stringify_key as b,
   escaped as c,

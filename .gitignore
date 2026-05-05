@@ -11,3 +11,7 @@ coverage/
 .impeccable.md
 .DS_Store
 *.tsbuildinfo
+
+# pnpm store (local cache)
+.pnpm-store/
+**/.pnpm-store/

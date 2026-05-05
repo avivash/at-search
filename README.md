@@ -6,15 +6,15 @@ A decentralized search and discovery layer for AT Protocol objects, built as a K
 
 ## Monorepo layout and tooling
 
-This repo is a **single workspace**: the root `package.json` lists `"workspaces": ["packages/*"]`. **Bun** is the supported tool for installs and scripts (`bun install`, `bun run …`); the lockfile is **`bun.lock`**. Run installs from the **repository root** so `workspace:*` links resolve.
+This repo is a **single workspace**: the root `package.json` lists `"workspaces": ["packages/*"]`. **pnpm** is the supported tool for installs and scripts (`pnpm install`, `pnpm run …`); the lockfile is **`pnpm-lock.yaml`**. Run installs from the **repository root** so `workspace:*` links resolve.
 
 ### Packages
 
 | Directory | Package name | Purpose |
 |-----------|--------------|---------|
-| `packages/common` | `@atsearch/common` | Shared types, descriptor derivation, Ed25519 signing. **`bun run --filter @atsearch/common build`** runs `tsc` to `dist/`. **`bun run --filter @atsearch/common test`** runs Jest. |
-| `packages/indexer` | `@atsearch/indexer` | SQLite index, DHT provider, `GET /pointers/:key`, `GET /record`. Depends on **`@atsearch/common`** via `workspace:*`. **`build`** → `tsc`; **`dev`** → `tsx watch`. **`seed`** → `tsx src/seed.ts`. The compiled app is run with **`node dist/index.js`** in production and in `scripts/run-demo.sh` because **better-sqlite3** is built for Node’s native ABI (Bun cannot load that binary). |
-| `packages/query-node` | `@atsearch/query-node` | Search API (`/search`, `/resolve`, `/interactions`), Slingshot/Constellation/XRPC hydration, ranking. Depends on **`@atsearch/common`** via `workspace:*`. **`build`** / **`dev`** same pattern as indexer (no better-sqlite3; **Bun** can run `dist/index.js`). |
+| `packages/common` | `@atsearch/common` | Shared types, descriptor derivation, Ed25519 signing. **`pnpm --filter @atsearch/common run build`** runs `tsc` to `dist/`. **`pnpm --filter @atsearch/common run test`** runs Jest. |
+| `packages/indexer` | `@atsearch/indexer` | SQLite index, DHT provider, `GET /pointers/:key`, `GET /record`. Depends on **`@atsearch/common`** via `workspace:*`. **`build`** → `tsc`; **`dev`** → `tsx watch`. **`seed`** → `tsx src/seed.ts`. The compiled app is run with **`node dist/index.js`** in production and in `scripts/run-demo.sh` because **better-sqlite3** is built for Node’s native ABI. |
+| `packages/query-node` | `@atsearch/query-node` | Search API (`/search`, `/resolve`, `/interactions`), Slingshot/Constellation/XRPC hydration, ranking. Depends on **`@atsearch/common`** via `workspace:*`. **`build`** / **`dev`** same pattern as indexer. |
 | `packages/demo-client` | `@atsearch/demo-client` | SvelteKit UI. **No** `workspace:*` dependency on `@atsearch/common`; it only calls the query node over **HTTP**. **`vite build`** / **`vite dev`**. |
 
 ### Root scripts
@@ -23,15 +23,15 @@ Defined in the root `package.json` and meant to be run from the repo root:
 
 | Command | Effect |
 |---------|--------|
-| `bun install` | Installs all workspace dependencies and links `workspace:*` packages. |
-| `bun run build` | `bun run --filter '*' build` — runs `build` in every package that defines it (build order follows Bun’s workspace scheduling; `common` should complete before dependents in practice). |
-| `bun run dev` | Runs each package’s `dev` script in parallel (useful less often than running one package’s dev server). |
-| `bun run test` | Runs `test` in each package that defines it (currently **@atsearch/common**). |
-| `bun run lint` | `tsc --noEmit` / `svelte-check` per package where configured. |
-| `bun run seed` | `bun run --filter @atsearch/indexer seed` — writes seed data into `ATSEARCH_DB_PATH` (default `./data/indexer.db`). |
-| `bun run demo` | `bash scripts/run-demo.sh` — builds packages, seeds, then starts indexer (**Node**), query node (**Bun**), and the demo (**Bun** + Vite). See that script for ports and env. |
+| `pnpm install` | Installs all workspace dependencies and links `workspace:*` packages. |
+| `pnpm run build` | `pnpm -r run build` — runs `build` in every package that defines it. |
+| `pnpm run dev` | Runs each package’s `dev` script in parallel (useful less often than running one package’s dev server). |
+| `pnpm run test` | Runs `test` in each package that defines it (currently **@atsearch/common**). |
+| `pnpm run lint` | `tsc --noEmit` / `svelte-check` per package where configured. |
+| `pnpm run seed` | `pnpm --filter @atsearch/indexer run seed` — writes seed data into `ATSEARCH_DB_PATH` (default `./data/indexer.db`). |
+| `pnpm run demo` | `bash scripts/run-demo.sh` — builds packages, seeds, then starts indexer (**Node**), query node (**Node**), and the demo (**pnpm** + Vite). See that script for ports and env. |
 
-**Work on one package:** `cd packages/<name> && bun run dev`, or from root `bun run --filter @atsearch/<name> <script>` (e.g. `bun run --filter @atsearch/query-node dev`).
+**Work on one package:** `cd packages/<name> && pnpm run dev`, or from root `pnpm --filter @atsearch/<name> run <script>` (e.g. `pnpm --filter @atsearch/query-node run dev`).
 
 ---
 
@@ -200,24 +200,25 @@ Results are returned sorted descending by score.
 
 ### Prerequisites
 
-- [Bun](https://bun.sh/) 1.0+ (package manager and runtime used in this repo)
+- Node.js 22+
+- pnpm 10+ (or `corepack enable`)
 
 ### Install
 
 ```bash
-bun install
+pnpm install
 ```
 
 ### Build
 
 ```bash
-bun run build
+pnpm run build
 ```
 
 ### Test
 
 ```bash
-bun run test
+pnpm run test
 ```
 
 ---
@@ -228,24 +229,24 @@ bun run test
 
 ```bash
 # 1. Install dependencies
-bun install
+pnpm install
 
 # 2. Build all packages
-bun run build
+pnpm run build
 
 # 3. Seed the database with synthetic records
-bun run seed
+pnpm run seed
 
 # 4. Start the full stack
-bun run demo
+pnpm run demo
 ```
 
-`scripts/run-demo.sh` uses **Bun** for installs, builds, seeding, the query node, and the demo client. The **indexer** process is started with **`node`** because **`better-sqlite3`** is a native addon built for Node’s ABI; running that package under Bun’s runtime triggers `NODE_MODULE_VERSION` mismatch errors. Set **`NODE_BIN`** if `node` is not on your `PATH`.
+`scripts/run-demo.sh` uses **pnpm** for installs, builds, seeding, the query node, and the demo client. The **indexer** process is started with **`node`** because **`better-sqlite3`** is a native addon built for Node’s ABI. Set **`NODE_BIN`** if `node` is not on your `PATH`.
 
 The script checks that **indexer HTTP**, **indexer DHT**, **query HTTP**, **query DHT**, and **Vite** ports are free before starting (so you do not accidentally hit an old query node and get **404 on `/interactions`**). Override ports if needed, for example:
 
 ```bash
-INDEXER_PORT=3011 QUERY_PORT=3012 DEMO_PORT=5180 bun run demo
+INDEXER_PORT=3011 QUERY_PORT=3012 DEMO_PORT=5180 pnpm run demo
 ```
 
 This will start:
@@ -317,7 +318,7 @@ Then:
 # Terminal 1 — indexer
 cd packages/indexer
 ATSEARCH_LIBP2P_LISTEN_HOST=127.0.0.1 \
-ATSEARCH_DB_PATH=../../data/indexer.db ATSEARCH_HTTP_PORT=3001 bun run dev
+ATSEARCH_DB_PATH=../../data/indexer.db ATSEARCH_HTTP_PORT=3001 pnpm run dev
 
 # Terminal 2 — query node
 cd packages/query-node
@@ -327,14 +328,14 @@ MICROCOSM_CONSTELLATION_BASE_URL=https://constellation.microcosm.blue \
 FALLBACK_ATPROTO_XRPC_BASE_URL=https://public.api.bsky.app \
 APP_USER_AGENT='at-search-demo/0.1 (manual)' \
 ATSEARCH_LIBP2P_LISTEN_HOST=127.0.0.1 \
-ATSEARCH_HTTP_PORT=3002 ATSEARCH_INDEXER_URLS=http://localhost:3001 bun run dev
+ATSEARCH_HTTP_PORT=3002 ATSEARCH_INDEXER_URLS=http://localhost:3001 pnpm run dev
 
 # Terminal 3 — demo client
 cd packages/demo-client
 # The dev server proxies /api → query-node (see vite.config.ts), so you don't need VITE_QUERY_API_URL.
 # If you changed the query node port, set VITE_QUERY_PROXY_TARGET accordingly.
-# Example: VITE_QUERY_PROXY_TARGET=http://127.0.0.1:3012 bun run dev -- --port 5180
-bun run dev -- --port 5173
+# Example: VITE_QUERY_PROXY_TARGET=http://127.0.0.1:3012 pnpm run dev -- --port 5180
+pnpm run dev -- --port 5173
 ```
 
 ### With AT Proto credentials (poll mode)
@@ -346,7 +347,7 @@ ATSEARCH_POLL_DIDS=did:plc:yourDid \
 ATSEARCH_POLL_COLLECTIONS=com.example.thing \
 ATSEARCH_DB_PATH=./data/indexer.db \
 ATSEARCH_HTTP_PORT=3001 \
-  bun run --filter @atsearch/indexer dev
+  pnpm --filter @atsearch/indexer run dev
 ```
 
 ---
@@ -422,7 +423,7 @@ This repo includes a Render Blueprint at `render.yaml` that provisions:
 
 ## Seed data
 
-The seed script (`bun run seed`) inserts 12 synthetic records covering:
+The seed script (`pnpm run seed`) inserts 12 synthetic records covering:
 
 - Vancouver community fridge (2 records: original + updated version)
 - East Van Tool Library (overlapping tags and geo)

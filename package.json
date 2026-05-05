@@ -7,13 +7,14 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "bun run --filter '*' build",
-    "dev": "bun run --filter '*' dev",
-    "test": "bun run --filter '*' test",
-    "lint": "bun run --filter '*' lint",
-    "seed": "bun run --filter @atsearch/indexer seed",
+    "build": "pnpm -r run build",
+    "dev": "pnpm -r run dev",
+    "test": "pnpm -r run test",
+    "lint": "pnpm -r run lint",
+    "seed": "pnpm --filter @atsearch/indexer run seed",
     "demo": "bash scripts/run-demo.sh"
   },
+  "packageManager": "pnpm@10.27.0",
   "devDependencies": {
     "@types/node": "^20.11.0",
     "typescript": "^5.3.3"

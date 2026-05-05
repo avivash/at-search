@@ -49,6 +49,7 @@ services:
       dockerfile: Dockerfile.query-node
     depends_on:
       - indexer
+      - relay
     environment:
       ATSEARCH_HTTP_PORT: "3002"
       ATSEARCH_DHT_PORT: "8002"
@@ -60,6 +61,11 @@ services:
       MICROCOSM_CONSTELLATION_BASE_URL: "${MICROCOSM_CONSTELLATION_BASE_URL:-https://constellation.microcosm.blue}"
       FALLBACK_ATPROTO_XRPC_BASE_URL: "${FALLBACK_ATPROTO_XRPC_BASE_URL:-https://public.api.bsky.app}"
       APP_USER_AGENT: "${APP_USER_AGENT:-at-search-demo/0.1 (docker)}"
+      # Optional: allow a public UI to submit PDS crawl requests safely (server-side).
+      ATSEARCH_RELAY_ADMIN_URL: "${ATSEARCH_RELAY_ADMIN_URL:-http://relay:2470}"
+      ATSEARCH_RELAY_ADMIN_PASSWORD: "${RELAY_ADMIN_PASSWORD:-dummy}"
+      ATSEARCH_CRAWL_WINDOW_MS: "${ATSEARCH_CRAWL_WINDOW_MS:-60000}"
+      ATSEARCH_CRAWL_MAX_PER_WINDOW: "${ATSEARCH_CRAWL_MAX_PER_WINDOW:-6}"
     # Expose the API only on localhost so other apps on the droplet can call it
     # without making it reachable from the public internet.
     # Override if 13002 is already taken, e.g. ATSEARCH_QUERY_HOSTPORT=127.0.0.1:13003
