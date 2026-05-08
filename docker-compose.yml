@@ -14,8 +14,9 @@ services:
       - atsearch_relay_data:/data/relay
     ports:
       # Bind locally; indexer will talk to it over Docker network.
-      - "127.0.0.1:12470:2470"
-      - "127.0.0.1:12471:2471"
+      # Override on a second droplet instance, e.g. ATSEARCH_RELAY_HTTP_HOSTPORT=127.0.0.1:22470
+      - "${ATSEARCH_RELAY_HTTP_HOSTPORT:-127.0.0.1:12470}:2470"
+      - "${ATSEARCH_RELAY_WS_HOSTPORT:-127.0.0.1:12471}:2471"
 
   indexer:
     build:
@@ -85,7 +86,8 @@ services:
       ATSEARCH_QUERY_UPSTREAM: "http://query-node:3002"
     ports:
       # Public entrypoint (HTTP only by default). Prefer a domain for HTTPS.
-      - "18080:80"
+      # Second instance: ATSEARCH_WEB_HOSTPORT=28080
+      - "${ATSEARCH_WEB_HOSTPORT:-18080}:80"
 
 volumes:
   atsearch_data:
