@@ -7,9 +7,9 @@ WORKDIR /app/packages/demo-client
 RUN bun install --frozen-lockfile || bun install
 RUN bun run build
 
-FROM caddy:2-alpine
-COPY --from=build /app/packages/demo-client/build /usr/share/caddy
-COPY deploy/Caddyfile /etc/caddy/Caddyfile
+FROM nginx:1.27-alpine
+COPY --from=build /app/packages/demo-client/build /usr/share/nginx/html
+COPY deploy/nginx-demo.conf /etc/nginx/nginx.conf
 
-EXPOSE 80 443
+EXPOSE 80
 
