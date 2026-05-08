@@ -3,9 +3,15 @@
 	servers {
 		protocols h1 h2
 	}
+
+	# This service is commonly run behind Nginx/Cloudflare for TLS.
+	# Disable Caddy's automatic HTTPS redirects/cert management to avoid redirect loops.
+	auto_https off
 }
 
-{$ATSEARCH_PUBLIC_HOSTNAME:localhost} {
+# If you're terminating TLS in front (e.g. with Nginx), force HTTP here to
+# avoid Caddy auto-redirecting to HTTPS and creating redirect loops.
+http://{$ATSEARCH_PUBLIC_HOSTNAME:localhost} {
 	encode zstd gzip
 
 	@api path /api/* 
