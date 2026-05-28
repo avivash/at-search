@@ -1,8 +1,42 @@
 import { buildAtUri, type IndexedRecord } from './types.js'
 
+/* ─────────────────────────────────────────────────────────────────────────
+ * Cross-lexicon normalisation
+ *
+ * The "cross-pollination" problem: AT Proto apps each invent their own lexicon.
+ * A search engine needs to extract searchable text from records it has never
+ * seen before, rank them uniformly, and let results from different apps appear
+ * alongside each other in the same result set.
+ *
+ * Architecture:
+ *  1. KNOWN ADAPTERS  — rich extraction for popular lexicons (right fields,
+ *     right URL, right tags). Add one per app.
+ *  2. GENERIC FALLBACK — heuristic field-name probing for any unknown lexicon.
+ *     Never returns null for a record that has ANY string content.
+ *
+ * Adding a new lexicon: write a `normalizeXxx` function and register it in
+ * the ADAPTERS map below. No other file needs to change.
+ * ───────────────────────────────────────────────────────────────────────── */
+
+type NormaliseFn = (did: string, rkey: string, r: Record<string, unknown>) => IndexedRecord | null
+
+const ADAPTERS: Record<string, NormaliseFn> = {
+  'app.bsky.feed.post':         normalizePost,
+  'app.bsky.actor.profile':     normalizeProfile,
+  'app.bsky.feed.generator':    normalizeFeedGenerator,
+  'app.bsky.graph.list':        normalizeList,
+  'app.bsky.graph.starterpack': normalizeStarterPack,
+  'com.whtwnd.blog.entry':      normalizeWhiteWind,
+  'fyi.unravel.frontpage.post': normalizeFrontpage,
+  'blue.linkat.board':          normalizeLinkat,
+  'at.functions.metadata':      normalizeFunctionsMetadata,
+  'com.example.thing':          normalizeThing,
+}
+
 /**
  * Normalise a raw AT Proto record into the IndexedRecord shape.
- * Returns null if the record type is not supported or malformed.
+ * Tries a known adapter first; falls back to heuristic extraction.
+ * Returns null only if the record has no extractable text at all.
  */
 export function normalizeRecord(
   did: string,
@@ -13,214 +47,62 @@ export function normalizeRecord(
   if (typeof raw !== 'object' || raw === null) return null
   const r = raw as Record<string, unknown>
 
-  if (collection === 'app.bsky.feed.post') {
-    return normalizePost(did, rkey, r)
-  }
+  const adapter = ADAPTERS[collection]
+  if (adapter) return adapter(did, rkey, r)
 
-  if (collection === 'app.bsky.actor.profile') {
-    return normalizeProfile(did, r)
-  }
-
-  if (collection === 'com.example.thing') {
-    return normalizeThing(did, r)
-  }
-
-  if (collection === 'at.functions.metadata') {
-    return normalizeFunctionsMetadata(did, rkey, r)
-  }
-
-  // Best-effort fallback for other lexicons (e.g. custom app records).
-  return normalizeGeneric(did, collection, r)
+  return normalizeGeneric(did, collection, rkey, r)
 }
 
-function normalizeFunctionsMetadata(
-  did: string,
-  rkey: string,
-  r: Record<string, unknown>,
-): IndexedRecord | null {
-  const name = typeof r.name === 'string' ? r.name.trim() : ''
-  if (!name) return null
+/* ── Lexicon metadata (for UI display) ──────────────────────────────────── */
 
-  const version = typeof r.version === 'string' ? r.version.trim() : ''
-  const title = version ? `${name} v${version}` : name
-
-  const baseDesc =
-    typeof r.description === 'string' && r.description.trim() ? r.description.trim() : undefined
-
-  const mode = typeof r.mode === 'string' ? r.mode.trim() : ''
-  const bits: string[] = []
-  if (mode) bits.push(`Mode: ${mode}.`)
-  if (typeof r.maxMemoryMb === 'number') bits.push(`Max memory: ${r.maxMemoryMb} MB.`)
-  if (typeof r.maxDurationMs === 'number') bits.push(`Max duration: ${r.maxDurationMs} ms.`)
-  if (typeof r.public === 'boolean') bits.push(r.public ? 'Public.' : 'Private.')
-
-  // Optional schema summaries (kept lightweight; stored as human-readable text).
-  if (typeof r.inputSchema === 'object' && r.inputSchema !== null) {
-    bits.push(`Args: ${schemaSummary(r.inputSchema as unknown)}.`)
-  }
-  if (typeof r.outputSchema === 'object' && r.outputSchema !== null) {
-    bits.push(`Returns: ${schemaSummary(r.outputSchema as unknown)}.`)
-  }
-
-  const allowedHosts = r.allowedHosts
-  if (Array.isArray(allowedHosts) && allowedHosts.length > 0) {
-    const hosts = allowedHosts
-      .filter((h): h is string => typeof h === 'string' && h.trim().length > 0)
-      .slice(0, 8)
-    if (hosts.length > 0) {
-      const more = allowedHosts.length > 8 ? ' …' : ''
-      bits.push(`Allowed hosts: ${hosts.join(', ')}${more}.`)
-    }
-  }
-
-  const atUri = buildAtUri(did, 'at.functions.metadata', rkey)
-  bits.push(`AT URI: ${atUri}.`)
-
-  const tail = bits.length > 0 ? `\n\n${bits.join(' ')}` : ''
-  const description =
-    baseDesc !== undefined ? baseDesc + tail : bits.length > 0 ? bits.join(' ').trim() : undefined
-
-  const tags: string[] = ['at-functions', 'wasm']
-  if (mode) tags.push(mode.toLowerCase())
-
-  return {
-    $type: 'at.functions.metadata',
-    title,
-    description,
-    tags,
-    author: { did },
-    createdAt:
-      typeof r.createdAt === 'string' && r.createdAt.trim()
-        ? r.createdAt
-        : new Date().toISOString(),
-  }
+export interface LexiconMeta {
+  /** Short human label: "post", "blog", "feed", etc. */
+  label: string
+  /** CSS modifier appended to .type-chip--{variant} */
+  variant: 'post' | 'profile' | 'feed' | 'list' | 'blog' | 'link' | 'function' | 'thing' | 'generic'
 }
 
-function schemaSummary(schema: unknown): string {
-  // Try to extract a compact “shape” from JSON Schema-like objects.
-  if (typeof schema !== 'object' || schema === null) return 'unknown'
-  const s = schema as Record<string, unknown>
-
-  function typeSummary(x: unknown, depth = 0): string {
-    if (depth > 2) return '…'
-    if (typeof x !== 'object' || x === null) return 'unknown'
-    const o = x as Record<string, unknown>
-
-    const t = typeof o.type === 'string' ? o.type : undefined
-    if (t === 'string' || t === 'number' || t === 'integer' || t === 'boolean' || t === 'null') {
-      return t
-    }
-
-    if (t === 'array') {
-      return `${typeSummary(o.items, depth + 1)}[]`
-    }
-
-    if (t === 'object') {
-      const props = o.properties
-      if (typeof props !== 'object' || props === null) {
-        const ap = o.additionalProperties
-        if (ap === true) return 'Record<string, unknown>'
-        if (ap === false) return '{}'
-        if (typeof ap === 'object' && ap !== null) {
-          return `Record<string, ${typeSummary(ap, depth + 1)}>`
-        }
-        return 'object'
-      }
-      const propObj = props as Record<string, unknown>
-      const entries = Object.entries(propObj).slice(0, 6)
-      const more = Object.keys(propObj).length > 6 ? ', …' : ''
-      const inner = entries
-        .map(([k, v]) => `${k}: ${typeSummary(v, depth + 1)}`)
-        .join(', ')
-      return inner ? `{ ${inner}${more} }` : 'object'
-    }
-
-    if (Array.isArray(o.oneOf)) return 'oneOf'
-    if (Array.isArray(o.anyOf)) return 'anyOf'
-    if (Array.isArray(o.allOf)) return 'allOf'
-    return t ?? 'schema'
-  }
-
-  const type = typeof s.type === 'string' ? s.type : undefined
-  if (type === 'object') {
-    const props = s.properties
-    if (typeof props === 'object' && props !== null) {
-      const propObj = props as Record<string, unknown>
-      const entries = Object.entries(propObj).slice(0, 6)
-      const more = Object.keys(propObj).length > 6 ? ', …' : ''
-      const inner = entries.map(([k, v]) => `${k}: ${typeSummary(v, 1)}`).join(', ')
-      return inner ? `{ ${inner}${more} }` : 'object'
-    }
-    const ap = s.additionalProperties
-    if (ap === true) return 'Record<string, unknown>'
-    if (ap === false) return '{}'
-    if (typeof ap === 'object' && ap !== null) return `Record<string, ${typeSummary(ap, 1)}>`
-    return 'object'
-  }
-
-  if (type === 'array') {
-    return `${typeSummary(s.items, 1)}[]`
-  }
-
-  if (type) return type
-  if (Array.isArray(s.oneOf)) return 'oneOf'
-  if (Array.isArray(s.anyOf)) return 'anyOf'
-  return 'schema'
+const LEXICON_META: Record<string, LexiconMeta> = {
+  'app.bsky.feed.post':         { label: 'post',     variant: 'post' },
+  'app.bsky.actor.profile':     { label: 'profile',  variant: 'profile' },
+  'app.bsky.feed.generator':    { label: 'feed',     variant: 'feed' },
+  'app.bsky.graph.list':        { label: 'list',     variant: 'list' },
+  'app.bsky.graph.starterpack': { label: 'starter',  variant: 'list' },
+  'com.whtwnd.blog.entry':      { label: 'blog',     variant: 'blog' },
+  'fyi.unravel.frontpage.post': { label: 'link',     variant: 'link' },
+  'blue.linkat.board':          { label: 'linkat',   variant: 'link' },
+  'at.functions.metadata':      { label: 'function', variant: 'function' },
+  'com.example.thing':          { label: 'thing',    variant: 'thing' },
 }
 
-function normalizeGeneric(did: string, collection: string, r: Record<string, unknown>): IndexedRecord | null {
-  const $type = typeof r.$type === 'string' ? r.$type : collection
-
-  const title =
-    (typeof r.name === 'string' && r.name.trim()) ||
-    (typeof r.title === 'string' && r.title.trim()) ||
-    (typeof r.displayName === 'string' && r.displayName.trim()) ||
-    ''
-
-  const description =
-    (typeof r.description === 'string' && r.description.trim()) ||
-    (typeof r.summary === 'string' && r.summary.trim()) ||
-    (typeof r.text === 'string' && r.text.trim()) ||
-    undefined
-
-  // If there is no meaningful text, skip indexing.
-  if (!title && !description) return null
-
-  const tags: string[] = []
-  if (Array.isArray(r.tags)) {
-    for (const t of r.tags) {
-      if (typeof t === 'string' && t.trim()) tags.push(t.trim().toLowerCase())
-    }
-  }
-
-  return {
-    $type,
-    title: title || did,
-    description: description || undefined,
-    tags: tags.length ? tags : undefined,
-    author: { did },
-    createdAt: typeof r.createdAt === 'string' ? r.createdAt : new Date().toISOString(),
-    url: typeof r.url === 'string' ? r.url : undefined,
-  }
+/**
+ * Return display metadata for a lexicon $type string.
+ * Falls back gracefully for unknown types using the last segment of the
+ * reverse-DNS identifier (e.g. "app.bsky.feed.like" → "like").
+ */
+export function lexiconMeta($type: string): LexiconMeta {
+  const known = LEXICON_META[$type]
+  if (known) return known
+  const segments = $type.split('.')
+  const label = segments[segments.length - 1] ?? $type
+  return { label, variant: 'generic' }
 }
+
+/* ── Known adapters ─────────────────────────────────────────────────────── */
 
 function normalizePost(did: string, rkey: string, r: Record<string, unknown>): IndexedRecord | null {
   const text = typeof r.text === 'string' ? r.text : null
   if (!text) return null
 
-  const createdAt = typeof r.createdAt === 'string' ? r.createdAt : new Date().toISOString()
+  const createdAt = str(r.createdAt) ?? new Date().toISOString()
 
   const tags: string[] = []
   if (Array.isArray(r.tags)) {
-    for (const t of r.tags) {
-      if (typeof t === 'string') tags.push(t.toLowerCase())
-    }
+    for (const t of r.tags) if (typeof t === 'string') tags.push(t.toLowerCase())
   }
   if (Array.isArray(r.facets)) {
     for (const facet of r.facets as Array<Record<string, unknown>>) {
-      const features = facet.features as Array<Record<string, unknown>> | undefined
-      if (!features) continue
-      for (const feature of features) {
+      for (const feature of (facet.features as Array<Record<string, unknown>>) ?? []) {
         if (feature.$type === 'app.bsky.richtext.facet#tag' && typeof feature.tag === 'string') {
           const tag = feature.tag.toLowerCase()
           if (!tags.includes(tag)) tags.push(tag)
@@ -236,17 +118,16 @@ function normalizePost(did: string, rkey: string, r: Record<string, unknown>): I
     $type: 'app.bsky.feed.post',
     title,
     description: text,
-    tags: tags.length > 0 ? tags : undefined,
+    tags: tags.length ? tags : undefined,
     author: { did },
     createdAt,
     url: `https://bsky.app/profile/${did}/post/${rkey}`,
   }
 }
 
-function normalizeProfile(did: string, r: Record<string, unknown>): IndexedRecord | null {
-  const displayName = typeof r.displayName === 'string' ? r.displayName.trim() : ''
-  const description = typeof r.description === 'string' ? r.description : undefined
-
+function normalizeProfile(did: string, _rkey: string, r: Record<string, unknown>): IndexedRecord | null {
+  const displayName = str(r.displayName)?.trim() ?? ''
+  const description = str(r.description)
   if (!displayName && !description) return null
 
   return {
@@ -259,7 +140,168 @@ function normalizeProfile(did: string, r: Record<string, unknown>): IndexedRecor
   }
 }
 
-function normalizeThing(did: string, r: Record<string, unknown>): IndexedRecord | null {
+function normalizeFeedGenerator(did: string, rkey: string, r: Record<string, unknown>): IndexedRecord | null {
+  const displayName = str(r.displayName)?.trim() ?? ''
+  const description = str(r.description)
+  if (!displayName && !description) return null
+
+  return {
+    $type: 'app.bsky.feed.generator',
+    title: displayName || `feed/${rkey}`,
+    description,
+    author: { did },
+    createdAt: str(r.createdAt) ?? new Date().toISOString(),
+    // Feed URIs on bsky.app: /profile/{did}/feed/{rkey}
+    url: `https://bsky.app/profile/${did}/feed/${rkey}`,
+  }
+}
+
+function normalizeList(did: string, rkey: string, r: Record<string, unknown>): IndexedRecord | null {
+  const name = str(r.name)?.trim() ?? ''
+  const description = str(r.description)
+  if (!name && !description) return null
+
+  return {
+    $type: 'app.bsky.graph.list',
+    title: name || `list/${rkey}`,
+    description,
+    author: { did },
+    createdAt: str(r.createdAt) ?? new Date().toISOString(),
+    url: `https://bsky.app/profile/${did}/lists/${rkey}`,
+  }
+}
+
+function normalizeStarterPack(did: string, rkey: string, r: Record<string, unknown>): IndexedRecord | null {
+  const rec = r.record as Record<string, unknown> | undefined
+  const name = str(rec?.name ?? r.name)?.trim() ?? ''
+  const description = str(rec?.description ?? r.description)
+  if (!name && !description) return null
+
+  return {
+    $type: 'app.bsky.graph.starterpack',
+    title: name || `starter/${rkey}`,
+    description,
+    author: { did },
+    createdAt: str(r.createdAt) ?? new Date().toISOString(),
+    url: `https://bsky.app/start/${did}/${rkey}`,
+  }
+}
+
+/**
+ * WhiteWind — AT Proto blogging app (https://whtwnd.com)
+ * Lexicon: com.whtwnd.blog.entry
+ * Fields: title (string), content (string, markdown), createdAt, ogp?
+ */
+function normalizeWhiteWind(did: string, rkey: string, r: Record<string, unknown>): IndexedRecord | null {
+  const title = str(r.title)?.trim() ?? ''
+  // Content is markdown — strip common formatting for better tokenisation
+  const rawContent = str(r.content) ?? str(r.text)
+  const content = rawContent ? stripMarkdown(rawContent) : undefined
+  const visibility = str(r.visibility)
+
+  // Skip non-public entries (private/unlisted) if the field exists
+  if (visibility && visibility !== 'public' && visibility !== 'author') {
+    // 'author' is WhiteWind's "only me" — still skip from public search
+    if (visibility !== 'public') return null
+  }
+
+  if (!title && !content) return null
+
+  return {
+    $type: 'com.whtwnd.blog.entry',
+    title: title || content?.slice(0, 80) || '(untitled)',
+    description: content,
+    author: { did },
+    createdAt: str(r.createdAt) ?? new Date().toISOString(),
+    // WhiteWind URLs require the handle — use the AT Proto browser as fallback
+    url: `https://whtwnd.com/${did}/entries/${rkey}`,
+  }
+}
+
+/**
+ * Frontpage — AT Proto link aggregator (https://frontpage.fyi)
+ * Lexicon: fyi.unravel.frontpage.post
+ * Fields: title (string), url (string), createdAt
+ */
+function normalizeFrontpage(did: string, rkey: string, r: Record<string, unknown>): IndexedRecord | null {
+  const title = str(r.title)?.trim() ?? ''
+  const linkUrl = str(r.url)
+  if (!title && !linkUrl) return null
+
+  return {
+    $type: 'fyi.unravel.frontpage.post',
+    title: title || linkUrl || '(untitled)',
+    description: linkUrl ? `→ ${linkUrl}` : undefined,
+    author: { did },
+    createdAt: str(r.createdAt) ?? new Date().toISOString(),
+    url: `https://frontpage.fyi/post/${rkey}`,
+  }
+}
+
+/**
+ * Linkat — AT Proto link-in-bio app (https://linkat.blue)
+ * Lexicon: blue.linkat.board
+ * Fields: name (string), links [{uri, title}]
+ */
+function normalizeLinkat(did: string, _rkey: string, r: Record<string, unknown>): IndexedRecord | null {
+  const name = str(r.name)?.trim() ?? ''
+  const links = Array.isArray(r.links) ? r.links as Array<Record<string, unknown>> : []
+  const linkTitles = links
+    .map(l => str(l.title) ?? str(l.uri) ?? '')
+    .filter(Boolean)
+    .join(', ')
+
+  if (!name && !linkTitles) return null
+
+  return {
+    $type: 'blue.linkat.board',
+    title: name || `${did} links`,
+    description: linkTitles || undefined,
+    author: { did },
+    createdAt: new Date().toISOString(),
+    url: `https://linkat.blue/${did}`,
+  }
+}
+
+/**
+ * AT Functions — WASM function registry (at.functions.metadata)
+ */
+function normalizeFunctionsMetadata(did: string, rkey: string, r: Record<string, unknown>): IndexedRecord | null {
+  const name = str(r.name)?.trim() ?? ''
+  if (!name) return null
+
+  const version = str(r.version)?.trim() ?? ''
+  const title = version ? `${name} v${version}` : name
+  const baseDesc = str(r.description)?.trim()
+
+  const bits: string[] = []
+  const mode = str(r.mode)?.trim()
+  if (mode) bits.push(`Mode: ${mode}.`)
+  if (typeof r.maxMemoryMb === 'number') bits.push(`Max memory: ${r.maxMemoryMb} MB.`)
+  if (typeof r.maxDurationMs === 'number') bits.push(`Max duration: ${r.maxDurationMs} ms.`)
+  if (typeof r.public === 'boolean') bits.push(r.public ? 'Public.' : 'Private.')
+
+  const tail = bits.length ? `\n\n${bits.join(' ')}` : ''
+  const description = baseDesc !== undefined ? baseDesc + tail : bits.join(' ').trim() || undefined
+
+  const tags: string[] = ['at-functions', 'wasm']
+  if (mode) tags.push(mode.toLowerCase())
+
+  const atUri = buildAtUri(did, 'at.functions.metadata', rkey)
+  return {
+    $type: 'at.functions.metadata',
+    title,
+    description: description ? description + `\n\nAT URI: ${atUri}` : `AT URI: ${atUri}`,
+    tags,
+    author: { did },
+    createdAt: str(r.createdAt) ?? new Date().toISOString(),
+  }
+}
+
+/**
+ * com.example.thing — prototype lexicon used by the seed script
+ */
+function normalizeThing(did: string, _rkey: string, r: Record<string, unknown>): IndexedRecord | null {
   if (typeof r.title !== 'string') return null
 
   const location = (() => {
@@ -271,11 +313,117 @@ function normalizeThing(did: string, r: Record<string, unknown>): IndexedRecord 
 
   return {
     $type: 'com.example.thing',
-    title: r.title as string,
-    description: typeof r.description === 'string' ? r.description : undefined,
+    title: r.title,
+    description: str(r.description),
     tags: Array.isArray(r.tags) ? (r.tags as string[]) : undefined,
     location,
-    createdAt: typeof r.createdAt === 'string' ? r.createdAt : new Date().toISOString(),
+    createdAt: str(r.createdAt) ?? new Date().toISOString(),
     author: { did },
   }
+}
+
+/* ── Universal fallback ─────────────────────────────────────────────────── */
+
+/**
+ * Heuristic normaliser for any lexicon not in the ADAPTERS map.
+ *
+ * Probes common field name patterns used across the AT Proto ecosystem.
+ * Returns null only if the record contains no extractable string content.
+ *
+ * Field probing priority:
+ *   title   → title > name > displayName > subject > heading
+ *   body    → text > content > body > description > summary > value > message
+ *   tags    → tags > labels > categories > keywords
+ *   date    → createdAt > created_at > publishedAt > indexedAt > timestamp
+ *   url     → url > uri > link > href (also builds AT Proto browser link as fallback)
+ */
+function normalizeGeneric(
+  did: string,
+  collection: string,
+  rkey: string,
+  r: Record<string, unknown>,
+): IndexedRecord | null {
+  const title =
+    str(r.title)?.trim() ||
+    str(r.name)?.trim() ||
+    str(r.displayName)?.trim() ||
+    str(r.subject)?.trim() ||
+    str(r.heading)?.trim() ||
+    ''
+
+  const bodyRaw =
+    str(r.text) ||
+    str(r.content) ||
+    str(r.body) ||
+    str(r.description) ||
+    str(r.summary) ||
+    str(r.value) ||
+    str(r.message) ||
+    ''
+  const body = bodyRaw ? stripMarkdown(bodyRaw) : ''
+
+  if (!title && !body) return null
+
+  const tags: string[] = []
+  for (const field of ['tags', 'labels', 'categories', 'keywords']) {
+    if (Array.isArray(r[field])) {
+      for (const t of r[field] as unknown[]) {
+        if (typeof t === 'string' && t.trim()) tags.push(t.trim().toLowerCase())
+      }
+      break
+    }
+  }
+
+  const createdAt =
+    str(r.createdAt) ??
+    str(r.created_at) ??
+    str(r.publishedAt) ??
+    str(r.indexedAt) ??
+    str(r.timestamp) ??
+    new Date().toISOString()
+
+  // For unknown lexicons, link to the AT Proto browser (atproto.com)
+  const rawUrl =
+    str(r.url) || str(r.uri) || str(r.link) || str(r.href) || ''
+  const canonicalUrl =
+    rawUrl.startsWith('http')
+      ? rawUrl
+      : `https://atproto.com/at/${encodeURIComponent(`at://${did}/${collection}/${rkey}`)}`
+
+  const derivedTitle = title || body.slice(0, 80) || collection
+
+  return {
+    $type: collection,
+    title: derivedTitle,
+    description: body || undefined,
+    tags: tags.length ? tags : undefined,
+    author: { did },
+    createdAt,
+    url: canonicalUrl,
+  }
+}
+
+/* ── Utilities ──────────────────────────────────────────────────────────── */
+
+function str(v: unknown): string | undefined {
+  return typeof v === 'string' && v.length > 0 ? v : undefined
+}
+
+/**
+ * Strip the most common Markdown syntax so tokenisation works on prose,
+ * not on `##`, `**`, `[]()`, etc.
+ */
+function stripMarkdown(md: string): string {
+  return md
+    .replace(/!\[.*?\]\(.*?\)/g, '')        // images
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1') // links → label only
+    .replace(/^#{1,6}\s+/gm, '')             // headings
+    .replace(/\*{1,3}([^*]+)\*{1,3}/g, '$1') // bold/italic
+    .replace(/_{1,2}([^_]+)_{1,2}/g, '$1')   // underscores
+    .replace(/`{1,3}[^`]*`{1,3}/g, '')       // inline code / code blocks
+    .replace(/^[-*+]\s+/gm, '')              // list bullets
+    .replace(/^\d+\.\s+/gm, '')              // numbered list
+    .replace(/^>\s+/gm, '')                  // blockquotes
+    .replace(/\n{3,}/g, '\n\n')              // collapse extra blank lines
+    .trim()
 }

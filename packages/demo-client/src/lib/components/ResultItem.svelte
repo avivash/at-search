@@ -3,12 +3,15 @@
   import type { SearchResult } from '$lib/api'
   import { fetchPostInteractions, type PostInteractionsResponse } from '$lib/api'
   import { recordWebUrl } from '$lib/recordWebUrl'
+  import { lexiconMeta } from '$lib/lexicon'
 
   export let result: SearchResult
   export let rank: number
 
   $: ({ ref, record, matchedDescriptors, score, verified, verificationError, fetchError } = result)
   $: webUrl = recordWebUrl(ref.uri, record.url, record.author?.handle)
+  $: meta = lexiconMeta(record.$type)
+
   $: openLabel = (() => {
     if (record.$type === 'app.bsky.feed.post' && record.description) {
       const t = record.description.trim().slice(0, 80)
@@ -20,6 +23,9 @@
 
   $: isPost    = record.$type === 'app.bsky.feed.post'
   $: isProfile = record.$type === 'app.bsky.actor.profile'
+  $: isBlog    = record.$type === 'com.whtwnd.blog.entry'
+  // Show author attribution for non-profile records that have an author DID
+  $: showAuthor = !isProfile && !!record.author?.did
 
   $: statusLabel = verified
     ? 'verified'
@@ -106,42 +112,50 @@
           aria-label={openLabel}
         >
           <div class="title-group">
+            <span class="type-chip type-chip--{meta.variant}">{meta.label}</span>
             {#if isPost}
-              <span class="type-chip type-chip--post">post</span>
               {#if record.author?.did}
                 <span class="author-line">{record.author.handle ?? truncateDid(record.author.did)}</span>
               {/if}
-            {:else if isProfile}
-              <span class="type-chip type-chip--profile">profile</span>
-              <h2 class="title">{record.title}</h2>
             {:else}
               <h2 class="title">{record.title}</h2>
             {/if}
           </div>
+          {#if showAuthor && !isPost && record.author?.did}
+            <span class="author-byline">
+              {record.author.handle ?? truncateDid(record.author.did)}
+            </span>
+          {/if}
           {#if isPost && record.description}
             <p class="post-text">{record.description}</p>
-          {:else if !isPost && record.description}
+          {:else if isBlog && record.description}
+            <p class="description description--blog">{record.description}</p>
+          {:else if record.description}
             <p class="description">{record.description}</p>
           {/if}
         </a>
       {:else}
         <div class="result-open result-open--static">
           <div class="title-group">
+            <span class="type-chip type-chip--{meta.variant}">{meta.label}</span>
             {#if isPost}
-              <span class="type-chip type-chip--post">post</span>
               {#if record.author?.did}
                 <span class="author-line">{record.author.handle ?? truncateDid(record.author.did)}</span>
               {/if}
-            {:else if isProfile}
-              <span class="type-chip type-chip--profile">profile</span>
-              <h2 class="title">{record.title}</h2>
             {:else}
               <h2 class="title">{record.title}</h2>
             {/if}
           </div>
+          {#if showAuthor && !isPost && record.author?.did}
+            <span class="author-byline">
+              {record.author.handle ?? truncateDid(record.author.did)}
+            </span>
+          {/if}
           {#if isPost && record.description}
             <p class="post-text">{record.description}</p>
-          {:else if !isPost && record.description}
+          {:else if isBlog && record.description}
+            <p class="description description--blog">{record.description}</p>
+          {:else if record.description}
             <p class="description">{record.description}</p>
           {/if}
         </div>
@@ -374,6 +388,14 @@
     color: var(--text-muted);
   }
 
+  /* Attribution for non-post types (blog, feed, link, etc.) */
+  .author-byline {
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    color: var(--text-dim);
+    margin-top: -2px;
+  }
+
   /* ── Type chips ───────────────────────── */
   .type-chip {
     font-family: var(--font-mono);
@@ -387,14 +409,52 @@
     user-select: none;
   }
 
+  /* Bluesky core types */
   .type-chip--post {
+    color: oklch(0.65 0.12 250);
+    background: oklch(0.65 0.12 250 / 0.12);
+  }
+
+  .type-chip--profile {
+    color: oklch(0.65 0.10 280);
+    background: oklch(0.65 0.10 280 / 0.12);
+  }
+
+  .type-chip--feed {
+    color: oklch(0.68 0.13 200);
+    background: oklch(0.68 0.13 200 / 0.12);
+  }
+
+  .type-chip--list {
+    color: oklch(0.65 0.10 230);
+    background: oklch(0.65 0.10 230 / 0.12);
+  }
+
+  /* Cross-app lexicon types */
+  .type-chip--blog {
+    color: oklch(0.62 0.13 150);
+    background: oklch(0.62 0.13 150 / 0.12);
+  }
+
+  .type-chip--link {
+    color: oklch(0.65 0.14 60);
+    background: oklch(0.65 0.14 60 / 0.12);
+  }
+
+  .type-chip--function {
+    color: oklch(0.62 0.13 330);
+    background: oklch(0.62 0.13 330 / 0.12);
+  }
+
+  .type-chip--thing {
     color: var(--text-muted);
     background: var(--accent-tint);
   }
 
-  .type-chip--profile {
-    color: var(--text-muted);
-    background: var(--accent-tint);
+  /* Unknown lexicons */
+  .type-chip--generic {
+    color: var(--text-dim);
+    background: var(--surface-raised);
   }
 
   /* ── Status badge ─────────────────────── */
@@ -483,6 +543,21 @@
     color: var(--text-muted);
     line-height: 1.55;
     max-width: 62ch;
+  }
+
+  /* Blog entries get slightly more generous line height and max-width
+     since WhiteWind prose can be dense */
+  .description--blog {
+    font-size: var(--text-base);
+    color: var(--text-muted);
+    line-height: 1.65;
+    max-width: 68ch;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    /* stylelint-disable-next-line value-no-vendor-prefix */
+    -webkit-line-clamp: 4;
+    line-clamp: 4;
+    overflow: hidden;
   }
 
   /* ── Tags ─────────────────────────────── */

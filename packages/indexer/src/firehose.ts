@@ -26,9 +26,33 @@ import { ingestRecord } from './ingest.js'
 import { advertiseDescriptor } from './dht.js'
 import type { DhtNode } from './dht.js'
 
+/**
+ * Collections we subscribe to by default on the Jetstream.
+ * This covers Bluesky core records plus the most active cross-lexicon apps:
+ *   - WhiteWind (AT Proto blogging)
+ *   - Frontpage (AT Proto link aggregator)
+ *   - Linkat (AT Proto link-in-bio)
+ *   - AT Functions (WASM function registry)
+ *   - Bluesky feeds and lists (discovery surfaces)
+ *   - Starter packs
+ *
+ * Pass `collections: undefined` to `startFirehose` to use this default set.
+ * Override with `ATSEARCH_JETSTREAM_COLLECTIONS` env var (comma-separated).
+ * Set to `*` to receive ALL collections (warning: very high volume).
+ */
 const SUPPORTED_COLLECTIONS = [
+  // Bluesky core
   'app.bsky.feed.post',
   'app.bsky.actor.profile',
+  'app.bsky.feed.generator',
+  'app.bsky.graph.list',
+  'app.bsky.graph.starterpack',
+  // Cross-lexicon apps
+  'com.whtwnd.blog.entry',
+  'fyi.unravel.frontpage.post',
+  'blue.linkat.board',
+  'at.functions.metadata',
+  // Legacy seed data
   'com.example.thing',
 ]
 
@@ -65,8 +89,12 @@ export function startFirehose(
   opts: FirehoseOptions,
 ): () => void {
   const collections = opts.collections ?? SUPPORTED_COLLECTIONS
-  const collectionsParam = collections.map((c) => `wantedCollections=${encodeURIComponent(c)}`).join('&')
-  const wsUrl = `${opts.jetstreamUrl}/subscribe?${collectionsParam}`
+  // Wildcard '*' means subscribe to all collections; omit the param (Jetstream sends everything)
+  const allCollections = collections.length === 1 && collections[0] === '*'
+  const collectionsParam = allCollections
+    ? ''
+    : collections.map((c) => `wantedCollections=${encodeURIComponent(c)}`).join('&')
+  const wsUrl = `${opts.jetstreamUrl}/subscribe${collectionsParam ? `?${collectionsParam}` : ''}`
 
   let ws: WebSocket | null = null
   let stopped = false
@@ -93,7 +121,7 @@ export function startFirehose(
         if (!commit) return
         if (commit.operation === 'delete') return
         if (!commit.record || !commit.cid) return
-        if (!collections.includes(commit.collection)) return
+        if (!allCollections && !collections.includes(commit.collection)) return
 
         const uri = `at://${event.did}/${commit.collection}/${commit.rkey}`
         const result = ingestRecord(db, uri, commit.cid, commit.record)
