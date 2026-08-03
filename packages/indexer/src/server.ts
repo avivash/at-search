@@ -9,7 +9,8 @@ import {
   publicKeyToHex,
 } from '@atsearch/common'
 import type { PointerRecord } from '@atsearch/common'
-import { getPointersByDescriptor, getAllDescriptorKeys } from './db.js'
+import { getPointersByDescriptor, getAllDescriptorKeys, listLexicons } from './db.js'
+import { lexiconMeta, adapterNsids } from '@atsearch/common'
 import type { DhtNode } from './dht.js'
 import { getNodePeerId } from './dht.js'
 
@@ -78,6 +79,28 @@ export async function buildServer(config: ServerConfig) {
   fastify.get('/descriptors', async () => {
     const keys = getAllDescriptorKeys(config.db)
     return { keys }
+  })
+
+  // Lexicon registry metadata: which collections this indexer understands and how.
+  fastify.get('/lexicons', async () => {
+    const rows = listLexicons(config.db)
+    const fromRegistry = rows.map((r) => ({
+      nsid: r.nsid,
+      status: r.status,
+      indexable: r.status === 'plan',
+      label: lexiconMeta(r.nsid).label,
+      ...(r.description ? { description: r.description } : {}),
+    }))
+    // Adapter-covered lexicons may never hit the registry — include them too.
+    const fromAdapters = adapterNsids()
+      .filter((nsid) => !rows.some((r) => r.nsid === nsid))
+      .map((nsid) => ({
+        nsid,
+        status: 'adapter',
+        indexable: true,
+        label: lexiconMeta(nsid).label,
+      }))
+    return { lexicons: [...fromRegistry, ...fromAdapters].sort((a, b) => a.nsid.localeCompare(b.nsid)) }
   })
 
   // Cache fallback: serve stored record JSON when AT Proto is unreachable.

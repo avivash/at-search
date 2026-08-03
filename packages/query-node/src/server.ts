@@ -217,6 +217,33 @@ export async function buildServer(dhtNode: DhtNode | null) {
     },
   )
 
+  /** Merged lexicon metadata from all configured indexers (for UI chips/tooltips). */
+  fastify.get('/lexicons', async () => {
+    type LexiconInfo = {
+      nsid: string
+      status: string
+      indexable: boolean
+      label: string
+      description?: string
+    }
+    const merged = new Map<string, LexiconInfo>()
+    await Promise.all(
+      services.env.indexerUrls.map(async (base) => {
+        try {
+          const res = await fetch(`${base}/lexicons`, { signal: AbortSignal.timeout(5_000) })
+          if (!res.ok) return
+          const data = (await res.json()) as { lexicons?: LexiconInfo[] }
+          for (const lex of data.lexicons ?? []) {
+            if (!merged.has(lex.nsid)) merged.set(lex.nsid, lex)
+          }
+        } catch {
+          // indexer unreachable — partial results are fine
+        }
+      }),
+    )
+    return { lexicons: Array.from(merged.values()).sort((a, b) => a.nsid.localeCompare(b.nsid)) }
+  })
+
   return fastify
 }
 
