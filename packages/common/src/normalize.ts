@@ -1,4 +1,4 @@
-import { buildAtUri, type IndexedRecord } from './types.js'
+import type { IndexedRecord } from './types.js'
 import { stripMarkdown } from './text.js'
 import { executeExtractionPlan } from './lexicon/plan.js'
 import type { ExtractionPlan } from './lexicon/plan.js'
@@ -296,7 +296,7 @@ function normalizeLinkat(did: string, _rkey: string, r: Record<string, unknown>)
 /**
  * AT Functions — WASM function registry (at.functions.metadata)
  */
-function normalizeFunctionsMetadata(did: string, rkey: string, r: Record<string, unknown>): IndexedRecord | null {
+function normalizeFunctionsMetadata(did: string, _rkey: string, r: Record<string, unknown>): IndexedRecord | null {
   const name = str(r.name)?.trim() ?? ''
   if (!name) return null
 
@@ -317,11 +317,10 @@ function normalizeFunctionsMetadata(did: string, rkey: string, r: Record<string,
   const tags: string[] = ['at-functions', 'wasm']
   if (mode) tags.push(mode.toLowerCase())
 
-  const atUri = buildAtUri(did, 'at.functions.metadata', rkey)
   return {
     $type: 'at.functions.metadata',
     title,
-    description: description ? description + `\n\nAT URI: ${atUri}` : `AT URI: ${atUri}`,
+    description,
     tags,
     author: { did },
     createdAt: str(r.createdAt) ?? new Date().toISOString(),

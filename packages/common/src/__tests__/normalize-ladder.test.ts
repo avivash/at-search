@@ -43,3 +43,25 @@ describe('normalization ladder', () => {
     expect(rec.title).toBe('Hi')
   })
 })
+
+describe('at.functions.metadata adapter', () => {
+  it('keeps the AT URI out of the description (ref.uri already carries it)', () => {
+    const rec = normalizeRecord(did, 'at.functions.metadata', 'echo-v1', {
+      name: 'echo',
+      version: '0.1.0',
+      description: 'Echoes the input JSON back to you.',
+      mode: 'pure-v1',
+      maxMemoryMb: 32,
+    })!
+    expect(rec.description).not.toContain('AT URI')
+    expect(rec.description).not.toContain('at://')
+    expect(rec.description).toContain('Echoes the input JSON back to you.')
+    expect(rec.description).toContain('Mode: pure-v1.')
+  })
+
+  it('leaves description undefined when the record carries no prose or limits', () => {
+    const rec = normalizeRecord(did, 'at.functions.metadata', 'bare-v1', { name: 'bare' })!
+    expect(rec.title).toBe('bare')
+    expect(rec.description).toBeUndefined()
+  })
+})
