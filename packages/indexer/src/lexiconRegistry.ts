@@ -103,6 +103,9 @@ export class LexiconRegistry {
       })
     }
     if (row?.status === 'no-text') {
+      if (row.resolved_at && now - Date.parse(row.resolved_at) > RESOLVED_TTL_MS) {
+        this.scheduleResolve(nsid) // stale: re-check in background — schemas evolve
+      }
       return this.remember(nsid, { action: 'drop', reason: 'no-text' })
     }
     if (row?.status === 'unresolvable') {
@@ -171,6 +174,8 @@ export class LexiconRegistry {
   private scheduleResolve(nsid: string): void {
     if (this.inFlight.has(nsid)) return
     this.inFlight.add(nsid)
-    void this.resolveNow(nsid).finally(() => this.inFlight.delete(nsid))
+    void this.resolveNow(nsid)
+      .finally(() => this.inFlight.delete(nsid))
+      .catch(() => { /* background resolution must never crash ingestion */ })
   }
 }

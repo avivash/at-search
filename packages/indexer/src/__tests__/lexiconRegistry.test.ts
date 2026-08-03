@@ -96,6 +96,30 @@ describe('LexiconRegistry.decide', () => {
     expect(registry.decide('xyz.app.like')).toEqual({ action: 'drop', reason: 'no-text' })
   })
 
+  it('stale no-text rows are refreshed in the background, same as plan rows', async () => {
+    let now = 1_000_000
+    const docs: Record<string, unknown> = { 'xyz.app.like': LIKE_LEXICON }
+    const { db, registry } = mkRegistry(docs, { now: () => now })
+
+    // Resolve once while the schema is text-free.
+    registry.decide('xyz.app.like')
+    await registry.resolveNow('xyz.app.like')
+    expect(getLexicon(db, 'xyz.app.like')!.status).toBe('no-text')
+
+    // Age past the TTL and swap in a schema that now compiles indexable, then
+    // clear the in-memory cache (fresh-process-start equivalent) so decide()
+    // re-reads the row from SQLite instead of serving the memoized decision.
+    now += 604_800_000 + 1
+    docs['xyz.app.like'] = FOO_LEXICON
+    ;(registry as unknown as { cache: Map<string, unknown> }).cache.clear()
+
+    const decision = registry.decide('xyz.app.like')
+    expect(decision).toEqual({ action: 'drop', reason: 'no-text' })
+
+    await registry.resolveNow('xyz.app.like')
+    expect(getLexicon(db, 'xyz.app.like')!.status).toBe('plan')
+  })
+
   it('failed resolution → unresolvable with retry backoff recorded', async () => {
     const { db, registry } = mkRegistry({}, { fail: true, now: () => 1_000_000 })
     // Call resolveNow directly (a decide() first would also schedule a background

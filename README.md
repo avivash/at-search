@@ -392,8 +392,8 @@ This repo includes a Render Blueprint at `render.yaml` that provisions:
 | `ATSEARCH_DB_PATH` | `./data/indexer.db` | SQLite database path |
 | `ATSEARCH_NODE_KEY` | — | Ed25519 private key hex (persisted signing key) |
 | `ATSEARCH_LEXICON_MODE` | `auto` | `auto`: resolve lexicon schemas at runtime (`_lexicon` DNS → `com.atproto.lexicon.schema`), compile extraction plans, triage collections (text-free ones like likes/follows are dropped). `curated`: fixed collection lists, no resolution. |
-| `ATSEARCH_LEXICON_ALLOWLIST` | — | Comma-separated NSIDs or `prefix.*`. When set, only these collections are ingested; schema-less ones fall back to heuristic extraction. |
-| `ATSEARCH_LEXICON_DENYLIST` | — | Comma-separated NSIDs or `prefix.*`. Always dropped. |
+| `ATSEARCH_LEXICON_ALLOWLIST` | — | Comma-separated NSIDs or `prefix.*`. When set, only these collections are ingested; schema-less ones fall back to heuristic extraction. Only applies when `ATSEARCH_LEXICON_MODE=auto`. |
+| `ATSEARCH_LEXICON_DENYLIST` | — | Comma-separated NSIDs or `prefix.*`. Always dropped. Only applies when `ATSEARCH_LEXICON_MODE=auto`. |
 
 ### Query node
 

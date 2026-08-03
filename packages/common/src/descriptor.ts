@@ -131,7 +131,7 @@ export interface ParsedQuery {
   text: string
 }
 
-const TYPE_FILTER_RE = /(?:^|\s)(?:type|collection):([a-zA-Z0-9._-]+)/
+const TYPE_FILTER_RE = /(?:^|\s)(?:type|collection):([a-zA-Z0-9._-]+)/i
 
 /**
  * Split a free-text query into an optional lexicon filter and the remaining

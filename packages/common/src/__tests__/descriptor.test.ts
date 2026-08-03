@@ -130,6 +130,13 @@ describe('parseQuery', () => {
       text: 'svelte tips',
     })
   })
+
+  it('keyword match is case-insensitive', () => {
+    expect(parseQuery('TYPE:at.functions.metadata')).toEqual({
+      typeFilter: 'at.functions.metadata',
+      text: '',
+    })
+  })
 })
 
 describe('descriptorToQueryKeys with type filter', () => {
