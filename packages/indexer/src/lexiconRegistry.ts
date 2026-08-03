@@ -7,7 +7,10 @@ import { getLexicon, upsertLexicon } from './db.js'
 
 export type TriageDecision =
   | { action: 'ingest'; plan?: ExtractionPlan }
-  | { action: 'drop'; reason: 'no-text' | 'denied' | 'not-allowlisted' | 'unresolvable' | 'pending' }
+  | {
+      action: 'drop'
+      reason: 'no-text' | 'denied' | 'not-allowlisted' | 'unresolvable' | 'pending' | 'invalid-nsid'
+    }
 
 export interface LexiconRegistryOptions {
   /** Injected for tests; production uses defaultResolveLexiconDoc. null = not found. */
@@ -16,6 +19,10 @@ export interface LexiconRegistryOptions {
   allowlist?: string[]
   /** Exact NSIDs or `prefix.*`. Always dropped. Wins over allowlist and adapters. */
   denylist?: string[]
+  /** Max resolutions running at once (default 6). */
+  maxConcurrentResolutions?: number
+  /** Max resolutions waiting behind the cap; excess is dropped and re-seen later (default 64). */
+  maxResolutionQueue?: number
   now?: () => number
   onResolved?: (nsid: string, status: string) => void
 }
@@ -26,6 +33,29 @@ const RESOLVED_TTL_MS = 604_800_000 // 7d
 
 export function nextRetryDelayMs(attempts: number): number {
   return RETRY_DELAYS_MS[attempts - 1] ?? RETRY_MAX_MS
+}
+
+const MAX_NSID_LENGTH = 317
+const AUTHORITY_SEGMENT_RE = /^[a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?$/
+const NAME_SEGMENT_RE = /^[a-zA-Z][a-zA-Z0-9]*$/
+
+/**
+ * Cheap syntactic NSID validation (AT Proto NSID spec) so junk collection
+ * names off the firehose never reach DNS/network resolution or the registry.
+ */
+export function isValidNsid(nsid: string): boolean {
+  if (nsid.length === 0 || nsid.length > MAX_NSID_LENGTH) return false
+  const segments = nsid.split('.')
+  if (segments.length < 3) return false
+  for (let i = 0; i < segments.length - 1; i++) {
+    const seg = segments[i]
+    if (seg.length === 0 || seg.length > 63) return false
+    if (!AUTHORITY_SEGMENT_RE.test(seg)) return false
+    if (i === 0 && /^[0-9]/.test(seg)) return false
+  }
+  const name = segments[segments.length - 1]
+  if (name.length === 0 || name.length > 63) return false
+  return NAME_SEGMENT_RE.test(name)
 }
 
 /** Same semantics as the firehose collection filters: exact NSID or `prefix.*`. */
@@ -68,15 +98,28 @@ export class LexiconRegistry {
   /** Terminal decisions only (plan / no-text / denied / not-allowlisted / adapter). */
   private cache = new Map<string, TriageDecision>()
   private inFlight = new Set<string>()
+  private activeResolves = 0
+  private resolveQueue: string[] = []
+  private readonly maxConcurrent: number
+  private readonly maxQueue: number
 
   constructor(
     private db: Database.Database,
     private opts: LexiconRegistryOptions,
-  ) {}
+  ) {
+    this.maxConcurrent = opts.maxConcurrentResolutions ?? 6
+    this.maxQueue = opts.maxResolutionQueue ?? 64
+  }
 
   decide(nsid: string): TriageDecision {
     const cached = this.cache.get(nsid)
     if (cached) return cached
+
+    // Deliberately NOT cached: junk collection names must stay out of the
+    // cache map too, or generated names could grow it without bound.
+    if (!isValidNsid(nsid)) {
+      return { action: 'drop', reason: 'invalid-nsid' }
+    }
 
     if (this.opts.denylist?.length && nsidMatches(this.opts.denylist, nsid)) {
       return this.remember(nsid, { action: 'drop', reason: 'denied' })
@@ -173,9 +216,27 @@ export class LexiconRegistry {
 
   private scheduleResolve(nsid: string): void {
     if (this.inFlight.has(nsid)) return
+    if (this.activeResolves >= this.maxConcurrent) {
+      // Bounded FIFO overflow; beyond it, drop — the NSID is re-seen on the
+      // live stream and a later decide() reschedules it.
+      if (this.resolveQueue.length >= this.maxQueue) return
+      this.inFlight.add(nsid)
+      this.resolveQueue.push(nsid)
+      return
+    }
     this.inFlight.add(nsid)
+    this.runResolve(nsid)
+  }
+
+  private runResolve(nsid: string): void {
+    this.activeResolves++
     void this.resolveNow(nsid)
-      .finally(() => this.inFlight.delete(nsid))
+      .finally(() => {
+        this.activeResolves--
+        this.inFlight.delete(nsid)
+        const next = this.resolveQueue.shift()
+        if (next) this.runResolve(next)
+      })
       .catch(() => { /* background resolution must never crash ingestion */ })
   }
 }
