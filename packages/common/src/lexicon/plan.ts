@@ -8,6 +8,9 @@
  * second (title/name/…), size limits third (short string ≈ title).
  * ───────────────────────────────────────────────────────────────────────── */
 
+import type { IndexedRecord } from '../types.js'
+import { stripMarkdown } from '../text.js'
+
 /** Path segments into a record object; '*' maps over an array. */
 export type FieldPath = string[]
 
@@ -139,5 +142,119 @@ export function compileExtractionPlan(doc: unknown): ExtractionPlan | null {
     langs: byRank(langs),
     url: byRank(url),
     ...(geo ? { geo } : {}),
+  }
+}
+
+/* ── Plan execution ─────────────────────────────────────────────────────── */
+
+function resolveValues(record: Record<string, unknown>, path: FieldPath): unknown[] {
+  let current: unknown[] = [record]
+  for (const seg of path) {
+    const next: unknown[] = []
+    for (const v of current) {
+      if (v === null || typeof v !== 'object') continue
+      if (seg === '*') {
+        if (Array.isArray(v)) next.push(...v)
+      } else {
+        next.push((v as Record<string, unknown>)[seg])
+      }
+    }
+    current = next
+  }
+  return current.filter((v) => v !== undefined && v !== null)
+}
+
+function firstString(record: Record<string, unknown>, paths: FieldPath[]): string | undefined {
+  for (const p of paths) {
+    for (const v of resolveValues(record, p)) {
+      if (typeof v === 'string' && v.trim()) return v.trim()
+    }
+  }
+  return undefined
+}
+
+/**
+ * Apply a compiled plan to one raw record. Same output contract as the
+ * hand-written adapters. Returns null when no text resolves (plan paths
+ * are candidates, not guarantees — fields may be optional or empty).
+ */
+export function executeExtractionPlan(
+  plan: ExtractionPlan,
+  did: string,
+  rkey: string,
+  record: Record<string, unknown>,
+): IndexedRecord | null {
+  const title = firstString(record, plan.title)
+
+  const bodyParts: string[] = []
+  for (const p of plan.body) {
+    for (const v of resolveValues(record, p)) {
+      if (typeof v === 'string' && v.trim() && v.trim() !== title) {
+        bodyParts.push(stripMarkdown(v.trim()))
+      }
+    }
+  }
+  const body = bodyParts.length ? bodyParts.join('\n\n') : undefined
+
+  if (!title && !body) return null
+
+  const tags: string[] = []
+  for (const p of plan.tags) {
+    for (const v of resolveValues(record, p)) {
+      for (const t of Array.isArray(v) ? v : [v]) {
+        if (typeof t === 'string' && t.trim()) {
+          const norm = t.trim().toLowerCase()
+          if (!tags.includes(norm)) tags.push(norm)
+        }
+      }
+    }
+  }
+
+  const createdAtRaw = firstString(record, plan.createdAt)
+  const createdAt =
+    createdAtRaw && Number.isFinite(Date.parse(createdAtRaw))
+      ? createdAtRaw
+      : new Date().toISOString()
+
+  const langs: string[] = []
+  for (const p of plan.langs) {
+    for (const v of resolveValues(record, p)) {
+      if (typeof v === 'string' && v.trim()) {
+        const code = v.trim().toLowerCase().slice(0, 2)
+        if (!langs.includes(code)) langs.push(code)
+      }
+    }
+  }
+
+  let urlValue: string | undefined
+  for (const p of plan.url) {
+    for (const v of resolveValues(record, p)) {
+      if (typeof v === 'string' && /^https?:\/\//i.test(v)) { urlValue = v; break }
+    }
+    if (urlValue) break
+  }
+  const canonicalUrl =
+    urlValue ?? `https://atproto.com/at/${encodeURIComponent(`at://${did}/${plan.nsid}/${rkey}`)}`
+
+  let location: IndexedRecord['location']
+  if (plan.geo) {
+    const lat = resolveValues(record, plan.geo.lat)[0]
+    const lon = resolveValues(record, plan.geo.lon)[0]
+    const gh = plan.geo.geohash ? resolveValues(record, plan.geo.geohash)[0] : undefined
+    if (typeof lat === 'number' && typeof lon === 'number') {
+      location = { lat, lon, geohash: typeof gh === 'string' ? gh : '' }
+    }
+  }
+
+  return {
+    $type: plan.nsid,
+    title: title ?? (body as string).slice(0, 80),
+    description: body,
+    tags: tags.length ? tags : undefined,
+    langs: langs.length ? langs : undefined,
+    author: { did },
+    createdAt,
+    url: canonicalUrl,
+    ...(location ? { location } : {}),
   }
 }

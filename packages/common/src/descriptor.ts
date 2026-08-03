@@ -44,6 +44,13 @@ export function deriveDescriptors(record: IndexedRecord): DescriptorKey[] {
     if (gh.length > 4) keys.add(`geo:${gh}`)
   }
 
+  if (record.langs) {
+    for (const lang of record.langs) {
+      const code = lang.toLowerCase().slice(0, 2)
+      if (code) keys.add(`lang:${code}`)
+    }
+  }
+
   return Array.from(keys)
 }
 

@@ -20,6 +20,7 @@ export interface IndexedRecord {
   title: string           // derived: displayName, first line of post, record title
   description?: string    // derived: full post text, bio, record description
   tags?: string[]         // hashtags, direct tags
+  langs?: string[]        // ISO 639-1 codes when the lexicon declares a language field
   author?: {
     did: string
     handle?: string       // resolved lazily; may be absent
