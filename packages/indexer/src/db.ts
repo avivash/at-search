@@ -39,6 +39,17 @@ export function openDb(dbPath: string): Database.Database {
       last_advertised_at TEXT NOT NULL,
       PRIMARY KEY (descriptor_key, provider_peer_id)
     );
+
+    CREATE TABLE IF NOT EXISTS lexicons (
+      nsid TEXT PRIMARY KEY,
+      status TEXT NOT NULL,
+      doc_json TEXT,
+      plan_json TEXT,
+      description TEXT,
+      resolved_at TEXT,
+      next_retry_at TEXT,
+      attempts INTEGER NOT NULL DEFAULT 0
+    );
   `)
 
   return db
@@ -109,4 +120,38 @@ export function upsertProvider(
 export function getAllDescriptorKeys(db: Database.Database): string[] {
   const rows = db.prepare('SELECT DISTINCT descriptor_key FROM descriptors').all() as Array<{ descriptor_key: string }>
   return rows.map((r) => r.descriptor_key)
+}
+
+export interface LexiconRow {
+  nsid: string
+  status: 'plan' | 'no-text' | 'unresolvable'
+  doc_json: string | null
+  plan_json: string | null
+  description: string | null
+  resolved_at: string | null
+  next_retry_at: string | null
+  attempts: number
+}
+
+export function upsertLexicon(db: Database.Database, row: LexiconRow): void {
+  db.prepare(`
+    INSERT INTO lexicons (nsid, status, doc_json, plan_json, description, resolved_at, next_retry_at, attempts)
+    VALUES (@nsid, @status, @doc_json, @plan_json, @description, @resolved_at, @next_retry_at, @attempts)
+    ON CONFLICT(nsid) DO UPDATE SET
+      status = excluded.status,
+      doc_json = excluded.doc_json,
+      plan_json = excluded.plan_json,
+      description = excluded.description,
+      resolved_at = excluded.resolved_at,
+      next_retry_at = excluded.next_retry_at,
+      attempts = excluded.attempts
+  `).run(row)
+}
+
+export function getLexicon(db: Database.Database, nsid: string): LexiconRow | undefined {
+  return db.prepare('SELECT * FROM lexicons WHERE nsid = ?').get(nsid) as LexiconRow | undefined
+}
+
+export function listLexicons(db: Database.Database): LexiconRow[] {
+  return db.prepare('SELECT * FROM lexicons ORDER BY nsid').all() as LexiconRow[]
 }
