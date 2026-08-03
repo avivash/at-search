@@ -1,4 +1,4 @@
-import type { SearchResult } from '@atsearch/common'
+import type { ScoreComponent, SearchResult } from '@atsearch/common'
 import { tokenize } from '@atsearch/common'
 import { scoreResult } from '../../rank.js'
 import type { AppServices } from '../createServices.js'
@@ -47,7 +47,7 @@ export async function maybeProfileSearchHit(
     matchedDescriptors.push('token:profile')
   }
 
-  const score = scoreResult({
+  const { score, breakdown } = scoreResult({
     ref: loc.ref,
     record,
     matchedDescriptors,
@@ -59,11 +59,20 @@ export async function maybeProfileSearchHit(
     pointerExpired: false,
   })
 
+  // Pin an exact identity hit above token matches, and say so in the breakdown
+  // rather than adding an unexplained constant.
+  const identityBoost: ScoreComponent = {
+    reason: 'identity-match',
+    label: 'exact handle or DID match',
+    points: 50,
+  }
+
   return {
     ref: loc.ref,
     record,
     matchedDescriptors,
-    score: score + 50,
+    score: score + identityBoost.points,
+    scoreBreakdown: [identityBoost, ...breakdown],
     verified: fv.verified,
     verificationError: fv.verificationError,
     fetchError: fv.fetchError,

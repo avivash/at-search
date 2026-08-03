@@ -8,7 +8,10 @@
   export let result: SearchResult
   export let rank: number
 
-  $: ({ ref, record, matchedDescriptors, score, verified, verificationError, fetchError } = result)
+  /** Expanded "why did this rank here" panel under the score. */
+  let showScoreWhy = false
+
+  $: ({ ref, record, matchedDescriptors, score, scoreBreakdown, verified, verificationError, fetchError } = result)
   $: webUrl = recordWebUrl(ref.uri, record.url, record.author?.handle)
   $: meta = lexiconMeta(record.$type)
 
@@ -269,9 +272,22 @@
 
       <div class="meta-row meta-score-row">
         <span class="meta-label">score</span>
-        <span class="score {score >= 0 ? 'score--pos' : 'score--neg'}">
-          {score >= 0 ? '+' : ''}{score}
-        </span>
+        {#if scoreBreakdown && scoreBreakdown.length > 0}
+          <button
+            type="button"
+            class="score score--btn {score >= 0 ? 'score--pos' : 'score--neg'}"
+            aria-expanded={showScoreWhy}
+            title="Why this result ranked here"
+            on:click={() => (showScoreWhy = !showScoreWhy)}
+          >
+            {score >= 0 ? '+' : ''}{score}
+            <span class="score-why">why</span>
+          </button>
+        {:else}
+          <span class="score {score >= 0 ? 'score--pos' : 'score--neg'}">
+            {score >= 0 ? '+' : ''}{score}
+          </span>
+        {/if}
 
         {#if tagDescriptors.length > 0 || tokenDescriptors.length > 0 || geoDescriptors.length > 0 || langDescriptors.length > 0}
           <span class="descriptors" aria-label="Matched descriptors">
@@ -290,6 +306,19 @@
           </span>
         {/if}
       </div>
+
+      {#if showScoreWhy && scoreBreakdown}
+        <ul class="score-breakdown">
+          {#each scoreBreakdown as part, i (i)}
+            <li>
+              <span class="sb-points {part.points >= 0 ? 'score--pos' : 'score--neg'}">
+                {part.points >= 0 ? '+' : ''}{part.points}
+              </span>
+              <span class="sb-label">{part.label}</span>
+            </li>
+          {/each}
+        </ul>
+      {/if}
     </div>
   </div>
 </article>
@@ -682,6 +711,52 @@
 
   .score--pos { color: var(--accent); }
   .score--neg { color: var(--text-dim); }
+
+  .score--btn {
+    display: inline-flex;
+    align-items: baseline;
+    gap: var(--sp-1);
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+  }
+
+  .score-why {
+    font-size: var(--text-xs);
+    color: var(--text-dim);
+    border-bottom: 1px dotted currentColor;
+  }
+
+  .score--btn:hover .score-why,
+  .score--btn[aria-expanded='true'] .score-why {
+    color: var(--text);
+  }
+
+  .score-breakdown {
+    list-style: none;
+    margin: var(--sp-1) 0 0;
+    padding: var(--sp-2);
+    border-left: 2px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-1);
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+  }
+
+  .score-breakdown li {
+    display: flex;
+    gap: var(--sp-2);
+  }
+
+  .sb-points {
+    font-variant-numeric: tabular-nums;
+    min-width: 2.5em;
+    text-align: right;
+  }
+
+  .sb-label { color: var(--text-dim); }
 
   /* ── Descriptor pills ─────────────────── */
   .descriptors {

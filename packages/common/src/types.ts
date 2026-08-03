@@ -50,11 +50,35 @@ export interface PointerRecordSigned extends PointerRecord {
   signature: string
 }
 
+/**
+ * One reason a result scored the way it did. The `points` of a result's
+ * components always sum to its `score`, so the UI can explain the ranking
+ * instead of showing a bare number.
+ */
+export interface ScoreComponent {
+  reason:
+    | 'all-terms'
+    | 'token'
+    | 'tag'
+    | 'geo'
+    | 'verified'
+    | 'pointer-expired'
+    | 'fetch-error'
+    | 'cid-mismatch'
+    | 'unavailable'
+    | 'identity-match'
+  /** Human-readable explanation, e.g. `tagged "hamburger"` */
+  label: string
+  points: number
+}
+
 export interface SearchResult {
   ref: StrongRef
   record: IndexedRecord
   matchedDescriptors: DescriptorKey[]
   score: number
+  /** Per-signal explanation of `score` */
+  scoreBreakdown?: ScoreComponent[]
   verified: boolean
   verificationError?: string
   fetchError?: string

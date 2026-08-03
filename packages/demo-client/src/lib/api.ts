@@ -48,11 +48,19 @@ export interface IndexedRecord {
 /** @deprecated use IndexedRecord */
 export type ThingRecord = IndexedRecord
 
+/** One reason a result scored the way it did; `points` sum to `score`. */
+export interface ScoreComponent {
+  reason: string
+  label: string
+  points: number
+}
+
 export interface SearchResult {
   ref: StrongRef
   record: IndexedRecord
   matchedDescriptors: string[]
   score: number
+  scoreBreakdown?: ScoreComponent[]
   verified: boolean
   verificationError?: string
   fetchError?: string

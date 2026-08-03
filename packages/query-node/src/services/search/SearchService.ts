@@ -78,7 +78,7 @@ export async function runSearch(services: AppServices, opts: SearchOptions): Pro
 
       const matchedDescriptors = Array.from(candidate.descriptors)
 
-      const score = scoreResult({
+      const { score, breakdown } = scoreResult({
         ref: candidate.ref,
         record: enriched,
         matchedDescriptors,
@@ -101,6 +101,7 @@ export async function runSearch(services: AppServices, opts: SearchOptions): Pro
           } as SearchResult['record']),
         matchedDescriptors,
         score,
+        scoreBreakdown: breakdown,
         verified,
         verificationError,
         fetchError,
