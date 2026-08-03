@@ -1,5 +1,7 @@
 import { buildAtUri, type IndexedRecord } from './types.js'
 import { stripMarkdown } from './text.js'
+import { executeExtractionPlan } from './lexicon/plan.js'
+import type { ExtractionPlan } from './lexicon/plan.js'
 
 /* ─────────────────────────────────────────────────────────────────────────
  * Cross-lexicon normalisation
@@ -36,7 +38,7 @@ const ADAPTERS: Record<string, NormaliseFn> = {
 
 /**
  * Normalise a raw AT Proto record into the IndexedRecord shape.
- * Tries a known adapter first; falls back to heuristic extraction.
+ * Three-tier ladder: known adapter → compiled extraction plan → heuristics.
  * Returns null only if the record has no extractable text at all.
  */
 export function normalizeRecord(
@@ -44,6 +46,7 @@ export function normalizeRecord(
   collection: string,
   rkey: string,
   raw: unknown,
+  plan?: ExtractionPlan,
 ): IndexedRecord | null {
   if (typeof raw !== 'object' || raw === null) return null
   const r = raw as Record<string, unknown>
@@ -51,7 +54,22 @@ export function normalizeRecord(
   const adapter = ADAPTERS[collection]
   if (adapter) return adapter(did, rkey, r)
 
+  if (plan?.indexable) {
+    const fromPlan = executeExtractionPlan(plan, did, rkey, r)
+    if (fromPlan) return fromPlan
+  }
+
   return normalizeGeneric(did, collection, rkey, r)
+}
+
+/** True when a hand-written adapter exists for this collection. */
+export function hasAdapter(collection: string): boolean {
+  return collection in ADAPTERS
+}
+
+/** NSIDs covered by hand-written adapters (tier 1). */
+export function adapterNsids(): string[] {
+  return Object.keys(ADAPTERS)
 }
 
 /* ── Lexicon metadata (for UI display) ──────────────────────────────────── */
