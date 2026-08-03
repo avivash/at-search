@@ -1,4 +1,4 @@
-import { deriveDescriptors, descriptorToQueryKeys, hashDescriptorKey, tokenize } from '../descriptor'
+import { deriveDescriptors, descriptorToQueryKeys, hashDescriptorKey, parseQuery, tokenize } from '../descriptor'
 import type { ThingRecord } from '../types'
 
 const makeRecord = (overrides: Partial<ThingRecord> = {}): ThingRecord => ({
@@ -105,6 +105,46 @@ describe('descriptorToQueryKeys', () => {
     expect(keys).toContain('tag:food')
     expect(keys).toContain('token:fridge')
     expect(keys).toContain('tag:fridge')
+  })
+})
+
+describe('parseQuery', () => {
+  it('plain text has no filter', () => {
+    expect(parseQuery('community fridge')).toEqual({ text: 'community fridge' })
+  })
+
+  it('bare type: filter', () => {
+    expect(parseQuery('type:at.functions.metadata')).toEqual({
+      typeFilter: 'at.functions.metadata',
+      text: '',
+    })
+  })
+
+  it('type: combined with free text, anywhere in the query', () => {
+    expect(parseQuery('resize image type:at.functions.metadata')).toEqual({
+      typeFilter: 'at.functions.metadata',
+      text: 'resize image',
+    })
+    expect(parseQuery('collection:com.whtwnd.blog.entry svelte tips')).toEqual({
+      typeFilter: 'com.whtwnd.blog.entry',
+      text: 'svelte tips',
+    })
+  })
+})
+
+describe('descriptorToQueryKeys with type filter', () => {
+  it('bare type: yields only the type key (unchanged behavior)', () => {
+    expect(descriptorToQueryKeys('type:at.functions.metadata')).toEqual([
+      'type:at.functions.metadata',
+    ])
+  })
+
+  it('type + text yields type key AND token/tag keys', () => {
+    const keys = descriptorToQueryKeys('resize type:at.functions.metadata')
+    expect(keys).toContain('type:at.functions.metadata')
+    expect(keys).toContain('token:resize')
+    expect(keys).toContain('tag:resize')
+    expect(keys).not.toContain('token:type')
   })
 })
 

@@ -1,5 +1,5 @@
 import type { StrongRef, SearchResult, PointerRecordSigned } from '@atsearch/common'
-import { descriptorToQueryKeys, tokenize } from '@atsearch/common'
+import { descriptorToQueryKeys, parseQuery, tokenize } from '@atsearch/common'
 import type { DhtNode } from '../../dht.js'
 import { findProviders } from '../../dht.js'
 import { scoreResult, rankResults } from '../../rank.js'
@@ -22,8 +22,9 @@ export async function runSearch(services: AppServices, opts: SearchOptions): Pro
   const { query } = opts
   const indexerUrls = opts.indexerUrls ?? services.env.indexerUrls
 
+  const { typeFilter, text } = parseQuery(query)
   const descriptorKeys = descriptorToQueryKeys(query)
-  const queryTokens = tokenize(query)
+  const queryTokens = tokenize(text)
   const queryTags = queryTokens
 
   const candidateMap = new Map<string, { ref: StrongRef; descriptors: Set<string>; expired: boolean }>()
@@ -54,8 +55,12 @@ export async function runSearch(services: AppServices, opts: SearchOptions): Pro
 
   const hydrateMemo = new Map<string, Promise<FetchResult>>()
 
+  const candidates = Array.from(candidateMap.values()).filter(
+    (c) => !typeFilter || c.ref.uri.includes(`/${typeFilter}/`),
+  )
+
   const results = await Promise.all(
-    Array.from(candidateMap.entries()).map(async ([, candidate]) => {
+    candidates.map(async (candidate) => {
       const refKey = `${candidate.ref.uri}::${candidate.ref.cid}`
       const { record, verified, verificationError, fetchError } =
         opts.verifyRecords !== false

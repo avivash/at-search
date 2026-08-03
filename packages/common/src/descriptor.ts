@@ -124,24 +124,41 @@ export function deriveDescriptorsFromProfile(
   return Array.from(keys)
 }
 
+export interface ParsedQuery {
+  /** Lexicon NSID filter from an inline `type:` / `collection:` term */
+  typeFilter?: string
+  /** The query with any filter term removed */
+  text: string
+}
+
+const TYPE_FILTER_RE = /(?:^|\s)(?:type|collection):([a-zA-Z0-9._-]+)/
+
+/**
+ * Split a free-text query into an optional lexicon filter and the remaining
+ * text. `type:nsid` / `collection:nsid` may appear anywhere in the query.
+ */
+export function parseQuery(query: string): ParsedQuery {
+  const m = query.match(TYPE_FILTER_RE)
+  if (!m) return { text: query.trim() }
+  return {
+    typeFilter: m[1]!.toLowerCase(),
+    text: query.replace(TYPE_FILTER_RE, ' ').replace(/\s+/g, ' ').trim(),
+  }
+}
+
 /**
  * Translate a free-text query into descriptor keys to look up in the index.
  *
- * Free-text tokens only map to `token:` / `tag:` (see {@link tokenize}).
- * Additionally, an explicit lexicon filter `type:<nsid>` or `collection:<nsid>`
- * adds `type:<nsid>` — that matches every indexed record with that `$type`,
- * which is the intended way to list a niche collection (e.g. `at.functions.metadata`).
+ * Free-text tokens map to `token:` / `tag:` keys. An inline `type:<nsid>`
+ * (or `collection:<nsid>`) adds a `type:` key; combined with free text it
+ * acts as a candidate source AND a filter (the query node restricts results
+ * to that collection).
  */
 export function descriptorToQueryKeys(query: string): DescriptorKey[] {
+  const { typeFilter, text } = parseQuery(query)
   const keys = new Set<DescriptorKey>()
-  const trimmed = query.trim()
-  const typeOrCollection = trimmed.match(/^(?:type|collection):([a-z0-9._-]+)$/i)
-  if (typeOrCollection) {
-    // Strict filter: when the user explicitly asks for a lexicon type, do not
-    // also include free-text tokens (which would mix in unrelated results).
-    return [`type:${typeOrCollection[1]!.toLowerCase()}`]
-  }
-  for (const token of tokenize(query)) {
+  if (typeFilter) keys.add(`type:${typeFilter}`)
+  for (const token of tokenize(text)) {
     keys.add(`token:${token}`)
     keys.add(`tag:${token}`)
   }
