@@ -15,3 +15,7 @@ coverage/
 # pnpm store (local cache)
 .pnpm-store/
 **/.pnpm-store/
+
+# SvelteKit generated output (demo-client)
+packages/demo-client/.svelte-kit/
+packages/demo-client/build/
