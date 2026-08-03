@@ -1,5 +1,5 @@
-import { openDb, upsertLexicon, getLexicon, listLexicons } from '../db.js'
-import type { LexiconRow } from '../db.js'
+import { openDb, upsertLexicon, getLexicon, listLexicons } from '../db'
+import type { LexiconRow } from '../db'
 
 const row = (overrides: Partial<LexiconRow> = {}): LexiconRow => ({
   nsid: 'com.example.foo',
