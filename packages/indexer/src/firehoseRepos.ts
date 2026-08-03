@@ -6,6 +6,7 @@ import type { CommitEvt, Event } from '@atproto/sync'
 import { ingestRecord } from './ingest.js'
 import { advertiseDescriptor } from './dht.js'
 import type { DhtNode } from './dht.js'
+import type { LexiconRegistry } from './lexiconRegistry.js'
 
 /** Mirrors @atproto/sync Firehose collection filter semantics (exact NSIDs or `prefix.*`). */
 function collectionMatches(patterns: string[] | undefined, collection: string): boolean {
@@ -29,6 +30,8 @@ export interface RepoFirehoseOptions {
   onIngested?: (uri: string, cid: string) => void
   /** Called on connection events for logging */
   onStatus?: (msg: string) => void
+  /** When set, collections are triaged (schema-driven) before ingest. */
+  registry?: LexiconRegistry
 }
 
 /**
@@ -49,8 +52,10 @@ export function startRepoFirehose(
       : opts.relayUrl.startsWith('http://relay') || opts.relayUrl.startsWith('http://127.0.0.1')
 
   const ingestOne = async (did: string, collection: string, rkey: string, cidStr: string, record: unknown) => {
+    const decision = opts.registry?.decide(collection) ?? { action: 'ingest' as const }
+    if (decision.action !== 'ingest') return
     const uri = `at://${did}/${collection}/${rkey}`
-    const result = ingestRecord(db, uri, cidStr, record)
+    const result = ingestRecord(db, uri, cidStr, record, decision.plan)
     if (result) {
       await Promise.all(result.descriptors.map((key) => advertiseDescriptor(dhtNode, key)))
       opts.onIngested?.(uri, cidStr)

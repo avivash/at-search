@@ -5,6 +5,7 @@ import { startServer } from './server.js'
 import { startPolling } from './poller.js'
 import { startFirehose } from './firehose.js'
 import { startRepoFirehose } from './firehoseRepos.js'
+import { LexiconRegistry, defaultResolveLexiconDoc } from './lexiconRegistry.js'
 
 // Render sets `PORT`; support it as a fallback.
 const PORT = parseInt(process.env.ATSEARCH_HTTP_PORT ?? process.env.PORT ?? '3001', 10)
@@ -34,6 +35,18 @@ const NODE_KEY = process.env.ATSEARCH_NODE_KEY
  */
 const MODE = process.env.ATSEARCH_MODE ?? 'local'
 
+/**
+ * Lexicon handling:
+ *   curated — current behavior: fixed collection lists, no runtime schema resolution
+ *   auto    — resolve lexicon schemas at runtime, triage collections, subscribe wide
+ */
+const LEXICON_MODE = process.env.ATSEARCH_LEXICON_MODE ?? 'curated'
+
+const parseList = (v: string | undefined): string[] | undefined => {
+  const items = (v ?? '').split(',').map((s) => s.trim()).filter(Boolean)
+  return items.length ? items : undefined
+}
+
 const PDS_URL = process.env.ATSEARCH_PDS_URL ?? 'https://bsky.social'
 const JETSTREAM_URL =
   (process.env.ATSEARCH_JETSTREAM_URL ?? 'wss://jetstream2.us-west.bsky.network').replace(/\/$/, '')
@@ -48,6 +61,17 @@ async function main() {
 
   const db = openDb(DB_PATH)
   console.log(`Database opened at ${DB_PATH}`)
+
+  const registry =
+    LEXICON_MODE === 'auto'
+      ? new LexiconRegistry(db, {
+          resolveLexiconDoc: defaultResolveLexiconDoc,
+          allowlist: parseList(process.env.ATSEARCH_LEXICON_ALLOWLIST),
+          denylist: parseList(process.env.ATSEARCH_LEXICON_DENYLIST),
+          onResolved: (nsid, status) => console.log(`[lexicon] ${nsid} → ${status}`),
+        })
+      : undefined
+  if (registry) console.log('Lexicon mode: auto (runtime schema resolution + triage)')
 
   const dhtNode = await createDhtNode({
     listenPort: DHT_PORT,
@@ -88,7 +112,8 @@ async function main() {
 
     startFirehose(db, dhtNode, {
       jetstreamUrl: JETSTREAM_URL,
-      collections: collections.length ? collections : undefined,
+      collections: collections.length ? collections : registry ? ['*'] : undefined,
+      registry,
       onStatus: (msg) => console.log(`[jetstream] ${msg}`),
       onIngested: (uri, cid) => console.log(`Indexed: ${uri} @ ${cid}`),
     })
@@ -106,6 +131,7 @@ async function main() {
     startRepoFirehose(db, dhtNode, {
       relayUrl: FIREHOSE_URL,
       collections: collections.length ? collections : undefined,
+      registry,
       onStatus: (msg) => console.log(`[firehose] ${msg}`),
       onIngested: (uri, cid) => console.log(`Indexed: ${uri} @ ${cid}`),
     })

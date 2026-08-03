@@ -5,7 +5,7 @@ import {
   deriveDescriptorsFromProfile,
   normalizeRecord,
 } from '@atsearch/common'
-import type { IndexedRecord, RawPostRecord, RawProfileRecord } from '@atsearch/common'
+import type { ExtractionPlan, IndexedRecord, RawPostRecord, RawProfileRecord } from '@atsearch/common'
 import { upsertRecord, upsertDescriptor } from './db.js'
 
 export interface IngestResult {
@@ -23,12 +23,13 @@ export function ingestRecord(
   uri: string,
   cid: string,
   rawRecord: unknown,
+  plan?: ExtractionPlan,
 ): IngestResult | null {
   const parts = uri.replace('at://', '').split('/')
   if (parts.length !== 3) return null
   const [did, collection, rkey] = parts
 
-  const normalized = normalizeRecord(did, collection, rkey, rawRecord)
+  const normalized = normalizeRecord(did, collection, rkey, rawRecord, plan)
   if (!normalized) return null
 
   const indexed_at = new Date().toISOString()
