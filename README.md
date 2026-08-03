@@ -138,7 +138,7 @@ The DHT is purely a **discovery and hinting layer**. Every query ultimately veri
 
 ## Descriptor derivation
 
-The indexer normalises several collections (see `packages/common` / `packages/indexer` ingest). From a **`com.example.thing`** record, descriptors include:
+The indexer normalises several collections (see `packages/common` / `packages/indexer` ingest). Descriptor derivation runs a three-tier ladder for each record: a hand-written adapter if one exists, otherwise a compiled extraction plan from a resolved lexicon schema (`ATSEARCH_LEXICON_MODE=auto`), otherwise heuristic field-name guessing. From a **`com.example.thing`** record, descriptors include:
 
 | Descriptor type | Example | Source |
 |----------------|---------|--------|
@@ -391,6 +391,9 @@ This repo includes a Render Blueprint at `render.yaml` that provisions:
 | `ATSEARCH_HTTP_PORT` | `3001` | HTTP server port |
 | `ATSEARCH_DB_PATH` | `./data/indexer.db` | SQLite database path |
 | `ATSEARCH_NODE_KEY` | — | Ed25519 private key hex (persisted signing key) |
+| `ATSEARCH_LEXICON_MODE` | `auto` | `auto`: resolve lexicon schemas at runtime (`_lexicon` DNS → `com.atproto.lexicon.schema`), compile extraction plans, triage collections (text-free ones like likes/follows are dropped). `curated`: fixed collection lists, no resolution. |
+| `ATSEARCH_LEXICON_ALLOWLIST` | — | Comma-separated NSIDs or `prefix.*`. When set, only these collections are ingested; schema-less ones fall back to heuristic extraction. |
+| `ATSEARCH_LEXICON_DENYLIST` | — | Comma-separated NSIDs or `prefix.*`. Always dropped. |
 
 ### Query node
 
@@ -464,7 +467,6 @@ The seed script (`pnpm run seed`) inserts 12 synthetic records covering:
 - DHT multiaddr → HTTP endpoint resolution (removes need for out-of-band indexer URL configuration)
 - DID-anchored indexer identity (indexer signs with DID key)
 - Geohash range queries (expand geo prefix search)
-- Lexicon-driven descriptor derivation (support any AT Proto record type)
 - Server-side search pagination (the demo UI paginates 10 results per page client-side)
 - Persistent DHT routing tables
 - HTTPS + TLS for indexer HTTP endpoints

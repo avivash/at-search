@@ -42,6 +42,9 @@ services:
       ATSEARCH_FIREHOSE_COLLECTIONS: "${ATSEARCH_FIREHOSE_COLLECTIONS:-}"
       # Optional: allow using `#sync` events for relay crawl/backfill (defaults true for http://relay:2470).
       ATSEARCH_FIREHOSE_INCLUDE_SYNC: "${ATSEARCH_FIREHOSE_INCLUDE_SYNC:-}"
+      ATSEARCH_LEXICON_MODE: "${ATSEARCH_LEXICON_MODE:-auto}"
+      ATSEARCH_LEXICON_ALLOWLIST: "${ATSEARCH_LEXICON_ALLOWLIST:-}"
+      ATSEARCH_LEXICON_DENYLIST: "${ATSEARCH_LEXICON_DENYLIST:-}"
     volumes:
       - atsearch_data:/data
     # No public ports by default (keep indexer private to the Docker network).

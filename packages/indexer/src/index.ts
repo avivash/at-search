@@ -37,10 +37,10 @@ const MODE = process.env.ATSEARCH_MODE ?? 'local'
 
 /**
  * Lexicon handling:
- *   curated — current behavior: fixed collection lists, no runtime schema resolution
- *   auto    — resolve lexicon schemas at runtime, triage collections, subscribe wide
+ *   auto    — default: resolve lexicon schemas at runtime, triage collections, subscribe wide
+ *   curated — fixed collection lists, no runtime schema resolution
  */
-const LEXICON_MODE = process.env.ATSEARCH_LEXICON_MODE ?? 'curated'
+const LEXICON_MODE = process.env.ATSEARCH_LEXICON_MODE ?? 'auto'
 
 const parseList = (v: string | undefined): string[] | undefined => {
   const items = (v ?? '').split(',').map((s) => s.trim()).filter(Boolean)
