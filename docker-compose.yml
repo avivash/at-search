@@ -92,6 +92,30 @@ services:
       # Second instance: ATSEARCH_WEB_HOSTPORT=28080
       - "${ATSEARCH_WEB_HOSTPORT:-18080}:80"
 
+  # Optional: run the AT Functions API on the same stack, wired to this
+  # query node for discovery. Requires the at-functions repo checked out as a
+  # sibling directory (../at-functions). Enable with:
+  #   COMPOSE_PROFILES=functions docker compose up -d --build
+  functions:
+    profiles: ["functions"]
+    build:
+      context: ../at-functions
+      target: api
+    depends_on:
+      - query-node
+    environment:
+      HOST: "0.0.0.0"
+      PORT: "3000"
+      NODE_ENV: "production"
+      ATSEARCH_QUERY_URL: "http://query-node:3002"
+      ATPROTO_SERVICE: "${ATPROTO_SERVICE:-https://bsky.social}"
+      ATFUNCTIONS_CORS_ORIGINS: "${ATFUNCTIONS_CORS_ORIGINS:-}"
+      MAX_BLOB_BYTES: "${MAX_BLOB_BYTES:-5242880}"
+    ports:
+      # Localhost-only: the run endpoint has no auth. Front it with your own
+      # reverse proxy (e.g. api.functions.at) if you want it public.
+      - "${ATFUNCTIONS_HOSTPORT:-127.0.0.1:13000}:3000"
+
 volumes:
   atsearch_data:
   atsearch_relay_data:
