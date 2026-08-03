@@ -25,15 +25,26 @@ const LEXICON_META: Record<string, LexiconMeta> = {
   'com.example.thing':          { label: 'thing',    variant: 'thing' },
 }
 
+/** Existing chip palettes reused for unknown lexicons, chosen by stable hash. */
+const FALLBACK_VARIANTS: LexiconMeta['variant'][] = [
+  'post', 'profile', 'feed', 'list', 'blog', 'link', 'function', 'thing',
+]
+
+function hashVariant(nsid: string): LexiconMeta['variant'] {
+  let h = 0
+  for (let i = 0; i < nsid.length; i++) h = (h * 31 + nsid.charCodeAt(i)) >>> 0
+  return FALLBACK_VARIANTS[h % FALLBACK_VARIANTS.length]
+}
+
 /**
  * Return display metadata for a lexicon $type string.
- * Falls back gracefully: uses the last segment of the reverse-DNS identifier
- * (e.g. "app.bsky.graph.follow" → "follow") with the 'generic' variant.
+ * Unknown types get the last NSID segment as label and a stable hashed
+ * color variant, so every app gets a distinct-ish chip without config.
  */
 export function lexiconMeta($type: string): LexiconMeta {
   const known = LEXICON_META[$type]
   if (known) return known
   const segments = $type.split('.')
   const label = segments[segments.length - 1] ?? $type
-  return { label, variant: 'generic' }
+  return { label, variant: hashVariant($type) }
 }

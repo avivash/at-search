@@ -112,7 +112,7 @@
           aria-label={openLabel}
         >
           <div class="title-group">
-            <span class="type-chip type-chip--{meta.variant}">{meta.label}</span>
+            <span class="type-chip type-chip--{meta.variant}" title={record.$type}>{meta.label}</span>
             {#if isPost}
               {#if record.author?.did}
                 <span class="author-line">{record.author.handle ?? truncateDid(record.author.did)}</span>
@@ -137,7 +137,7 @@
       {:else}
         <div class="result-open result-open--static">
           <div class="title-group">
-            <span class="type-chip type-chip--{meta.variant}">{meta.label}</span>
+            <span class="type-chip type-chip--{meta.variant}" title={record.$type}>{meta.label}</span>
             {#if isPost}
               {#if record.author?.did}
                 <span class="author-line">{record.author.handle ?? truncateDid(record.author.did)}</span>
