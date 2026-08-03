@@ -13,8 +13,8 @@ This repo is a **single workspace**: the root `package.json` lists `"workspaces"
 | Directory | Package name | Purpose |
 |-----------|--------------|---------|
 | `packages/common` | `@atsearch/common` | Shared types, descriptor derivation, Ed25519 signing. **`pnpm --filter @atsearch/common run build`** runs `tsc` to `dist/`. **`pnpm --filter @atsearch/common run test`** runs Jest. |
-| `packages/indexer` | `@atsearch/indexer` | SQLite index, DHT provider, `GET /pointers/:key`, `GET /record`. Depends on **`@atsearch/common`** via `workspace:*`. **`build`** → `tsc`; **`dev`** → `tsx watch`. **`seed`** → `tsx src/seed.ts`. The compiled app is run with **`node dist/index.js`** in production and in `scripts/run-demo.sh` because **better-sqlite3** is built for Node’s native ABI. |
-| `packages/query-node` | `@atsearch/query-node` | Search API (`/search`, `/resolve`, `/interactions`), Slingshot/Constellation/XRPC hydration, ranking. Depends on **`@atsearch/common`** via `workspace:*`. **`build`** / **`dev`** same pattern as indexer. |
+| `packages/indexer` | `@atsearch/indexer` | SQLite index, lexicon registry (runtime schema resolution + collection triage), DHT provider, `GET /pointers/:key`, `GET /record`, `GET /lexicons`. Depends on **`@atsearch/common`** via `workspace:*`. **`build`** → `tsc`; **`dev`** → `tsx watch`; **`test`** → Jest; **`seed`** → `tsx src/seed.ts`. The compiled app is run with **`node dist/index.js`** in production and in `scripts/run-demo.sh` because **better-sqlite3** is built for Node’s native ABI. |
+| `packages/query-node` | `@atsearch/query-node` | Search API (`/search`, `/resolve`, `/interactions`, `/lexicons`), Slingshot/Constellation/XRPC hydration, ranking. Depends on **`@atsearch/common`** via `workspace:*`. **`build`** / **`dev`** same pattern as indexer. |
 | `packages/demo-client` | `@atsearch/demo-client` | SvelteKit UI. **No** `workspace:*` dependency on `@atsearch/common`; it only calls the query node over **HTTP**. **`vite build`** / **`vite dev`**. |
 
 ### Root scripts
@@ -26,7 +26,7 @@ Defined in the root `package.json` and meant to be run from the repo root:
 | `pnpm install` | Installs all workspace dependencies and links `workspace:*` packages. |
 | `pnpm run build` | `pnpm -r run build` — runs `build` in every package that defines it. |
 | `pnpm run dev` | Runs each package’s `dev` script in parallel (useful less often than running one package’s dev server). |
-| `pnpm run test` | Runs `test` in each package that defines it (currently **@atsearch/common**). |
+| `pnpm run test` | Runs `test` in each package that defines it (**@atsearch/common** and **@atsearch/indexer**). |
 | `pnpm run lint` | `tsc --noEmit` / `svelte-check` per package where configured. |
 | `pnpm run seed` | `pnpm --filter @atsearch/indexer run seed` — writes seed data into `ATSEARCH_DB_PATH` (default `./data/indexer.db`). |
 | `pnpm run demo` | `bash scripts/run-demo.sh` — builds packages, seeds, then starts indexer (**Node**), query node (**Node**), and the demo (**pnpm** + Vite). See that script for ports and env. |
@@ -39,15 +39,17 @@ Defined in the root `package.json` and meant to be run from the repo root:
 
 ```
 ┌───────────────────────────────────────────────────────────────────┐
-│  Publisher                                                        │
-│  Writes records (com.example.thing) into their AT Proto repo     │
+│  Publisher (any AT Proto app)                                     │
+│  Writes records (any lexicon) into their AT Proto repo           │
 └─────────────────────────┬─────────────────────────────────────────┘
-                          │ AT Proto firehose / polling
+                          │ Jetstream / firehose / polling
                           ▼
 ┌───────────────────────────────────────────────────────────────────┐
 │  Indexer Node                                                     │
-│  • Ingests com.example.thing records                             │
-│  • Derives descriptor keys (type, tag, token, geo)               │
+│  • Triages collections via the lexicon registry (resolves        │
+│    schemas at runtime; drops text-free lexicons like likes)      │
+│  • Normalises records: adapter → extraction plan → heuristics    │
+│  • Derives descriptor keys (type, tag, token, geo, lang)         │
 │  • Stores (uri, cid, descriptors) in SQLite                      │
 │  • Advertises as DHT provider for each descriptor key            │
 │  • Serves GET /pointers/:descriptorKey (signed PointerRecords)   │
@@ -75,10 +77,6 @@ Defined in the root `package.json` and meant to be run from the repo root:
                                 │  • Matched descriptors             │
                                 └────────────────────────────────────┘
 ```
-
-### Data flow (conceptual)
-
-See **Monorepo layout and tooling** for package names and how they are built and run.
 
 ---
 
@@ -150,6 +148,32 @@ The indexer normalises several collections (see `packages/common` / `packages/in
 Rules: lowercase, stopwords removed, deduped.
 
 Each descriptor key is hashed as `sha256("atsearch:v1:" + key)` before being used as a DHT CID.
+
+---
+
+## Cross-lexicon indexing (lexicon registry)
+
+AT Search indexes the whole ATmosphere — any app, any lexicon — without per-app code. Lexicons are self-describing at runtime: an NSID resolves via a DNS TXT record (`_lexicon.{authority}` → DID) to a `com.atproto.lexicon.schema` record in the authority's repo. The indexer uses that to teach itself how to index unknown collections.
+
+**Normalisation ladder** (`packages/common/src/normalize.ts`): each record goes through the first tier that applies —
+
+1. **Hand-written adapter** — rich extraction for ~10 popular lexicons (Bluesky, WhiteWind, Frontpage, Linkat, AT Functions).
+2. **Compiled extraction plan** — for unknown collections, the resolved lexicon schema is compiled into a plan (`packages/common/src/lexicon/plan.ts`): which fields are title/body text, tags, dates, languages, URLs, geo. Classification is schema-structure-first (string formats like `at-uri`/`did`/`datetime` are never indexed as text; `const`/`enum` fields are skipped; `knownValues` become tags), field names second.
+3. **Heuristic fallback** — field-name probing for collections with no published schema.
+
+**Triage** (`packages/indexer/src/lexiconRegistry.ts`): before ingesting, the consumer asks the registry to `decide(nsid)`. Collections whose schema has no searchable text (likes, follows, reposts) compile to a non-indexable plan and are dropped at a map lookup — which is what makes subscribing to the entire firehose (`ATSEARCH_LEXICON_MODE=auto`, the default) affordable. Decisions are cached in SQLite (`lexicons` table); failed resolutions are negative-cached with 1h → 6h → 24h → 7d backoff; successful ones refresh weekly (schemas evolve). Malformed collection names are rejected by syntactic NSID validation before any network work, and background resolutions run through a small semaphore (6 in-flight, bounded FIFO overflow) so a burst of novel NSIDs can't amplify into unbounded DNS/HTTP fan-out.
+
+Both `GET /lexicons` endpoints (indexer and query node) expose what the registry has learned: each known NSID with its status (`adapter` / `plan` / `no-text` / `unresolvable`) and the schema's description.
+
+### Query syntax
+
+| Query | Behavior |
+|-------|----------|
+| `community fridge` | Free-text search across all indexed lexicons |
+| `type:at.functions.metadata` | List every indexed record of that lexicon (alias: `collection:`) |
+| `resize image type:at.functions.metadata` | Free-text search restricted to one lexicon |
+
+The `type:` term may appear anywhere in the query and is case-insensitive.
 
 ---
 
@@ -254,7 +278,7 @@ This will start:
 - **Query node** on `http://localhost:3002` (or `QUERY_PORT`)
 - **Demo client** on `http://localhost:5173` (or `DEMO_PORT`; the script prints the real URL)
 
-Open the printed URL and try queries like `fridge`, `vancouver`, `mutual-aid`. For a **Bluesky / federated profile** not present in your local SQLite index, enter a **handle** (`user.bsky.social`) or **DID** (`did:plc:…`) alone on the search line; the query node resolves it via Slingshot / public XRPC and returns `app.bsky.actor.profile/self` as a hit.
+Open the printed URL and try queries like `fridge`, `vancouver`, `mutual-aid`, or a lexicon filter like `type:at.functions.metadata` (see **Query syntax** above). For a **Bluesky / federated profile** not present in your local SQLite index, enter a **handle** (`user.bsky.social`) or **DID** (`did:plc:…`) alone on the search line; the query node resolves it via Slingshot / public XRPC and returns `app.bsky.actor.profile/self` as a hit.
 
 ---
 
@@ -352,10 +376,6 @@ ATSEARCH_HTTP_PORT=3001 \
 
 ---
 
-## Environment variables
-
----
-
 ## Deploy to Render.com
 
 This repo includes a Render Blueprint at `render.yaml` that provisions:
@@ -377,11 +397,15 @@ This repo includes a Render Blueprint at `render.yaml` that provisions:
 - The indexer uses an attached disk mounted at `/data` and stores SQLite at `/data/indexer.db`.
 - If you want to run `ATSEARCH_MODE=poll`, set `ATSEARCH_MODE=poll`, `ATSEARCH_PDS_URL`, and `ATSEARCH_POLL_DIDS` on the `at-search-indexer` service in Render.
 
+---
+
+## Environment variables
+
 ### Indexer
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `ATSEARCH_MODE` | `local` | `local`, `poll`, or `jetstream` (jetstream logs a warning; use `MIGRATION_MICROCOSM.md`) |
+| `ATSEARCH_MODE` | `local` | `local` (seed script only), `poll` (listRecords for known DIDs), `jetstream` (public Jetstream websocket), or `firehose` (raw `com.atproto.sync.subscribeRepos` via `@atproto/sync`) |
 | `ATSEARCH_PDS_URL` | `https://bsky.social` | PDS base URL |
 | `ATSEARCH_HANDLE` | — | AT handle (for auth; poll-related tooling if used) |
 | `ATSEARCH_PASSWORD` | — | App password |
@@ -445,7 +469,7 @@ The seed script (`pnpm run seed`) inserts 12 synthetic records covering:
 
 ## Limitations
 
-1. **Firehose full decode not implemented.** The firehose emits CAR-encoded blocks. Full record extraction requires `@atproto/sync` + DAG-CBOR decoding; the prototype logs seen records but falls back to PDS polling for actual content.
+1. **Collections without published lexicon schemas are invisible in auto mode** (unless allowlisted, in which case they fall back to heuristic extraction). This is a deliberate precision trade-off that also nudges apps toward publishing their lexicons.
 
 2. **DHT → HTTP peer resolution not implemented.** In production, DHT `findProviders` returns multiaddrs that need to be resolved to HTTP endpoints. The prototype uses configured `ATSEARCH_INDEXER_URLS` directly (DHT discovery supplements but does not replace this in the current implementation).
 
@@ -463,7 +487,6 @@ The seed script (`pnpm run seed`) inserts 12 synthetic records covering:
 
 ## Future work
 
-- Full CAR block decoding for firehose ingestion
 - DHT multiaddr → HTTP endpoint resolution (removes need for out-of-band indexer URL configuration)
 - DID-anchored indexer identity (indexer signs with DID key)
 - Geohash range queries (expand geo prefix search)
