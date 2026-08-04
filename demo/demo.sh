@@ -148,17 +148,22 @@ let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{
 pause 4
 echo
 
-type "# Even the ingredients array is indexed — and type: filters compose:"
-echo; pause 1
-type "curl -s \$ATSEARCH/search?q=nutmeg+type:$NSID"
+type "# 'nutmeg' appears nowhere in that record except inside the"
 echo; pause 0.5
-search "nutmeg type:$NSID" | node -e '
+type "# ingredients array. Ask for both words — no filter, whole network:"
+echo; pause 1
+type "curl -s \$ATSEARCH/search?q=gnocchi+nutmeg"
+echo; pause 0.5
+search "gnocchi nutmeg" | node -e '
 let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{
   const rs=(JSON.parse(s).results||[]);
-  if(!rs.length){console.log("  (none)");return}
-  for(const r of rs.slice(0,3)) console.log("  " + r.record.title + "   " + r.ref.uri);
+  if(!rs.length){console.log("  (no results — see demo/README.md)");return}
+  for(const r of rs.slice(0,3))
+    console.log("  " + String(r.score).padStart(3) + "  " + r.record.$type.padEnd(22) + " " + (r.record.title||"").slice(0,38));
+  const i=rs.findIndex(r=>r.record.$type==="at.functions.recipe");
+  console.log("\n  the recipe ranks #" + (i+1) + " of " + rs.length + " — matched on an ingredient.");
 })'
-pause 3
+pause 4
 echo
 
 type "# Zero lines of search-engine code were written for this app."
