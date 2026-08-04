@@ -73,6 +73,21 @@ only if it has requested crawl there — worth testing before demoing, because a
 sovereign PDS that has not is exactly the gap that multi-source ingestion is
 meant to close.
 
+## UI reel (video)
+
+`ui-reel.json` is a [testreel](https://github.com/greentfrapp/testreel) definition
+that drives the live UI and records an MP4 — search a lexicon invented today,
+expand the score breakdown, then list a third-party app's records.
+
+```bash
+npm install testreel playwright && npx playwright install chromium
+npx testreel demo/ui-reel.json
+```
+
+Output lands in `testreel-output/` (video + a PNG per `screenshot` step). The
+video is not committed — it regenerates in about 30 seconds and stays current
+with whatever the index actually holds.
+
 ## Files
 
 - `put-record.mjs` — zero-dependency AT Proto record writer (plain `fetch`

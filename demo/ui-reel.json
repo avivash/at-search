@@ -1,0 +1,93 @@
+{
+  "url": "https://atsearch.network",
+  "viewport": {
+    "width": 1280,
+    "height": 800
+  },
+  "colorScheme": "dark",
+  "outputFormat": "mp4",
+  "speed": 1.0,
+  "cursor": {
+    "style": "pointer"
+  },
+  "chrome": {
+    "url": true
+  },
+  "background": {
+    "gradient": {
+      "from": "#1a1a1f",
+      "to": "#0a0a0c"
+    },
+    "borderRadius": 12
+  },
+  "waitForSelector": "input[type=search]",
+  "steps": [
+    {
+      "action": "wait",
+      "ms": 1200
+    },
+    {
+      "action": "type",
+      "selector": "input[type=search]",
+      "text": "gnocchi"
+    },
+    {
+      "action": "keyboard",
+      "key": "Enter"
+    },
+    {
+      "action": "wait",
+      "ms": 6000
+    },
+    {
+      "action": "screenshot",
+      "name": "01-recipe-above-post"
+    },
+    {
+      "action": "wait",
+      "ms": 2500
+    },
+    {
+      "action": "click",
+      "selector": "button[title=\"Why this result ranked here\"] >> nth=0"
+    },
+    {
+      "action": "wait",
+      "ms": 3000
+    },
+    {
+      "action": "screenshot",
+      "name": "02-why-expanded"
+    },
+    {
+      "action": "wait",
+      "ms": 1500
+    },
+    {
+      "action": "fill",
+      "selector": "input[type=search]",
+      "text": ""
+    },
+    {
+      "action": "type",
+      "selector": "input[type=search]",
+      "text": "type:app.rocksky.scrobble"
+    },
+    {
+      "action": "keyboard",
+      "key": "Enter"
+    },
+    {
+      "action": "wait",
+      "ms": 6000
+    },
+    {
+      "action": "screenshot",
+      "name": "03-many-apps"
+    },
+    {
+      "action": "wait",
+      "ms": 3000
+    }
+  ]
+}
