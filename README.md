@@ -177,6 +177,43 @@ The `type:` term may appear anywhere in the query and is case-insensitive.
 
 ---
 
+## Backfill — rebuilding the index from repos
+
+Jetstream and the firehose carry **live commits only**. A record written before
+an index existed is invisible to it forever, which makes a streamed index
+one-way: lose it and the history is gone with it.
+
+Backfill reads repos directly (`describeRepo` → `listRecords`) so the index is
+reproducible from the network at any time. Records go through the same triage
+and extraction plans as live ingestion, so a backfilled record is
+indistinguishable from a streamed one.
+
+```bash
+# Specific repos
+pnpm --filter @atsearch/indexer run backfill -- --dids did:plc:abc,did:plc:def
+
+# Everything a relay knows about (paginated; start small)
+pnpm --filter @atsearch/indexer run backfill -- --from-relay https://bsky.network --limit 500
+
+# One lexicon across a list of repos
+pnpm --filter @atsearch/indexer run backfill -- --dids-file dids.txt --collections at.functions.metadata
+```
+
+| Flag | Purpose |
+|---|---|
+| `--dids` / `--dids-file` / `--from-relay` | where the DIDs come from (`--limit` bounds relay enumeration) |
+| `--collections` | restrict to specific NSIDs; default is every collection the repo declares |
+| `--concurrency` | repos crawled in parallel (default 4) |
+| `--max-per-repo` | stop after N records per repo |
+| `--checkpoint` / `--restart` | completed DIDs are checkpointed so re-runs resume; `--restart` ignores the checkpoint |
+
+**Run it twice for unknown lexicons.** The first record of a collection the
+registry has never seen schedules schema resolution and is dropped while that
+is in flight; a second pass indexes it with the compiled plan. The run reports
+skipped collections so you can see when this applies.
+
+---
+
 ## Pointer record structure
 
 Indexers serve signed pointer records over HTTP at `GET /pointers/:descriptorKey`.
