@@ -82,7 +82,10 @@ export async function buildServer(config: ServerConfig) {
   })
 
   // Lexicon registry metadata: which collections this indexer understands and how.
-  fastify.get('/lexicons', async () => {
+  // `?plans=1` includes the compiled extraction plan — the query node mirrors
+  // these so it normalises hydrated records the same way the indexer did.
+  fastify.get<{ Querystring: { plans?: string } }>('/lexicons', async (request) => {
+    const withPlans = request.query.plans === '1' || request.query.plans === 'true'
     const rows = listLexicons(config.db)
     const fromRegistry = rows.map((r) => ({
       nsid: r.nsid,
@@ -90,6 +93,7 @@ export async function buildServer(config: ServerConfig) {
       indexable: r.status === 'plan',
       label: lexiconMeta(r.nsid).label,
       ...(r.description ? { description: r.description } : {}),
+      ...(withPlans && r.plan_json ? { plan: JSON.parse(r.plan_json) } : {}),
     }))
     // Adapter-covered lexicons may never hit the registry — include them too.
     const fromAdapters = adapterNsids()

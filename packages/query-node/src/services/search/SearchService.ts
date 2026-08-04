@@ -22,6 +22,10 @@ export async function runSearch(services: AppServices, opts: SearchOptions): Pro
   const { query } = opts
   const indexerUrls = opts.indexerUrls ?? services.env.indexerUrls
 
+  // Keep mirrored extraction plans warm so hydration normalises novel lexicons
+  // the same way the indexer did (non-blocking; a stale set is fine).
+  services.plans.refreshInBackground()
+
   const { typeFilter, text } = parseQuery(query)
   const descriptorKeys = descriptorToQueryKeys(query)
   const queryTokens = tokenize(text)

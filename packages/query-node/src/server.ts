@@ -60,6 +60,10 @@ function makeRateLimiter(opts?: { windowMs?: number; max?: number }) {
 export async function buildServer(dhtNode: DhtNode | null) {
   const fastify = Fastify({ logger: true })
 
+  // Mirror the indexers' extraction plans so every hydration path — not just
+  // /search — normalises novel lexicons the way the indexer did.
+  services.plans.refreshInBackground()
+
   await fastify.register(cors, { origin: true })
 
   const crawlLimiter = makeRateLimiter({
@@ -174,6 +178,8 @@ export async function buildServer(dhtNode: DhtNode | null) {
       if (!uri || !cid) {
         return reply.status(400).send({ error: 'Missing required params: uri, cid' })
       }
+
+      services.plans.refreshInBackground()
 
       const result = await services.record.fetchAndVerify({ uri, cid })
 

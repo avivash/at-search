@@ -1,6 +1,7 @@
 import {
   parseAtUri,
   normalizeRecord,
+  type ExtractionPlan,
   type IndexedRecord,
   type StrongRef,
 } from '@atsearch/common'
@@ -31,7 +32,16 @@ export class RecordService {
   private slingshot: SlingshotProvider | null
   private locationCache: TtlCache<CachedLoc>
 
-  constructor(private env: MicrocosmEnv) {
+  /**
+   * Supplies the extraction plan for a collection, so records hydrated here are
+   * normalised exactly as the indexer normalised them. Without it, novel
+   * lexicons fall back to heuristics and lose their body text — which also
+   * costs them ranking, since scoring runs on this record.
+   */
+  constructor(
+    private env: MicrocosmEnv,
+    private planFor?: (nsid: string) => ExtractionPlan | undefined,
+  ) {
     this.slingshot = env.slingshotBaseUrl
       ? new SlingshotProvider(env.slingshotBaseUrl, env.appUserAgent)
       : null
@@ -59,7 +69,7 @@ export class RecordService {
 
     const fromNet = await this.fetchRawFromNetwork(did, collection, rkey)
     if (fromNet?.cid) {
-      const rec = normalizeRecord(did, collection, rkey, fromNet.payload)
+      const rec = normalizeRecord(did, collection, rkey, fromNet.payload, this.planFor?.(collection))
       const ref = { uri: `at://${did}/${collection}/${rkey}`, cid: fromNet.cid }
       const display =
         rec ??
@@ -93,7 +103,7 @@ export class RecordService {
 
     const fromNet = await this.fetchRawFromNetwork(did, collection, rkey)
     if (fromNet && fromNet.cid === ref.cid) {
-      const rec = normalizeRecord(did, collection, rkey, fromNet.payload)
+      const rec = normalizeRecord(did, collection, rkey, fromNet.payload, this.planFor?.(collection))
       if (rec) {
         logFetch('record', fromNet.source, ref.uri)
         return this.applyPdsVerification(ref, rec, fromNet.source)
