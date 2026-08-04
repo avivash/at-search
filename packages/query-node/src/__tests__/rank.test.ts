@@ -29,10 +29,10 @@ const sum = (parts: Array<{ points: number }>) =>
 describe('scoreResult breakdown', () => {
   it('explains a fully-matching verified result and totals correctly', () => {
     const { score, breakdown } = scoreResult(input())
-    // +5 all terms, +1 token, +1 verified — 'fridge' is not a tag on this record
-    expect(score).toBe(7)
+    // +5 all terms, +3 'fridge' in the title, +1 verified — not a tag on this record
+    expect(score).toBe(9)
     expect(sum(breakdown)).toBe(score)
-    expect(breakdown.map((b) => b.reason)).toEqual(['all-terms', 'token', 'verified'])
+    expect(breakdown.map((b) => b.reason)).toEqual(['all-terms', 'title', 'verified'])
     expect(breakdown[0]).toEqual({
       reason: 'all-terms',
       label: 'every search term matched',
@@ -41,8 +41,7 @@ describe('scoreResult breakdown', () => {
   })
 
   it('names the specific term and tag that matched', () => {
-    // The +9 case from the live UI: one term, present in both text and tags,
-    // on a record verified against its PDS.
+    // One term, in the title and the tags, on a record verified against its PDS.
     const { score, breakdown } = scoreResult(
       input({
         record: record({ title: 'THE PERFECT BODY hamburger', tags: ['hamburger'] }),
@@ -50,13 +49,13 @@ describe('scoreResult breakdown', () => {
         queryTags: ['hamburger'],
       }),
     )
-    // +5 all terms, +1 token, +2 tag, +1 verified — the screenshot case
-    expect(score).toBe(9)
+    // +5 all terms, +3 title, +2 tag, +1 verified
+    expect(score).toBe(11)
     expect(sum(breakdown)).toBe(score)
     expect(breakdown).toContainEqual({
-      reason: 'token',
-      label: '"hamburger" in the text',
-      points: 1,
+      reason: 'title',
+      label: '"hamburger" in the title',
+      points: 3,
     })
     expect(breakdown).toContainEqual({
       reason: 'tag',
@@ -139,5 +138,61 @@ describe('qualifiesForTextQuery', () => {
 
   it('counts geo and lang as non-text signals', () => {
     expect(qualifiesForTextQuery(['geo:c2', 'lang:en'], true)).toBe(false)
+  })
+})
+
+describe('title relevance and stable ordering', () => {
+  it('ranks a title match above a body-only match', () => {
+    const titleMatch = scoreResult(
+      input({
+        record: record({ title: 'Potato gnocchi', description: 'Bake the potatoes.' }),
+        queryTokens: ['gnocchi'],
+        queryTags: ['gnocchi'],
+      }),
+    )
+    const bodyMatch = scoreResult(
+      input({
+        record: record({
+          title: 'Full of Flavor: How to Create Like a Chef',
+          description: 'From a Vitello Tonnato Burger to Green Olive Gnocchi with Wilted Greens.',
+        }),
+        queryTokens: ['gnocchi'],
+        queryTags: ['gnocchi'],
+      }),
+    )
+    expect(titleMatch.score).toBeGreaterThan(bodyMatch.score)
+    expect(titleMatch.breakdown).toContainEqual({
+      reason: 'title',
+      label: '"gnocchi" in the title',
+      points: 3,
+    })
+    expect(bodyMatch.breakdown).toContainEqual({
+      reason: 'token',
+      label: '"gnocchi" in the text',
+      points: 1,
+    })
+  })
+
+  it('counts a term once — title wins, it does not also score as body text', () => {
+    const { breakdown } = scoreResult(
+      input({
+        record: record({ title: 'Potato gnocchi', description: 'gnocchi gnocchi gnocchi' }),
+        queryTokens: ['gnocchi'],
+        queryTags: ['gnocchi'],
+      }),
+    )
+    expect(breakdown.filter((b) => b.reason === 'title' || b.reason === 'token')).toHaveLength(1)
+  })
+
+  it('breaks score ties deterministically instead of by fetch order', () => {
+    const mk = (uri: string, createdAt: string): SearchResult =>
+      ({ score: 7, ref: { uri, cid: 'c' }, record: { createdAt } } as SearchResult)
+    const a = mk('at://x/y/a', '2026-01-01T00:00:00.000Z')
+    const b = mk('at://x/y/b', '2026-08-01T00:00:00.000Z')
+
+    // Same inputs in either arrival order must produce the same ranking.
+    expect(rankResults([a, b]).map((r) => r.ref.uri)).toEqual(rankResults([b, a]).map((r) => r.ref.uri))
+    // Newer first among equal scores.
+    expect(rankResults([a, b])[0].ref.uri).toBe('at://x/y/b')
   })
 })

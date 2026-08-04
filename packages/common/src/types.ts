@@ -58,6 +58,7 @@ export interface PointerRecordSigned extends PointerRecord {
 export interface ScoreComponent {
   reason:
     | 'all-terms'
+    | 'title'
     | 'token'
     | 'tag'
     | 'geo'

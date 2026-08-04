@@ -36,9 +36,11 @@ export function scoreResult(input: RankInput): ScoredResult {
 
   const breakdown: ScoreComponent[] = []
 
-  const recordTokens = tokenize(
-    [input.record.title, input.record.description].filter(Boolean).join(' '),
-  )
+  // A term in the title is a far stronger signal than one buried in body text:
+  // "Potato gnocchi" is about gnocchi; a cookbook blurb mentioning it once is not.
+  const titleTokens = tokenize(input.record.title ?? '')
+  const bodyTokens = tokenize(input.record.description ?? '')
+  const recordTokens = [...titleTokens, ...bodyTokens]
   const recordTags = (input.record.tags ?? []).map((t) =>
     t.toLowerCase().replace(/\s+/g, '-'),
   )
@@ -51,9 +53,11 @@ export function scoreResult(input: RankInput): ScoredResult {
     breakdown.push({ reason: 'all-terms', label: 'every search term matched', points: 5 })
   }
 
-  // +1 per matching token
+  // +3 in the title, +1 in the body — counted once, title wins.
   for (const qt of input.queryTokens) {
-    if (recordTokens.includes(qt)) {
+    if (titleTokens.includes(qt)) {
+      breakdown.push({ reason: 'title', label: `"${qt}" in the title`, points: 3 })
+    } else if (bodyTokens.includes(qt)) {
       breakdown.push({ reason: 'token', label: `"${qt}" in the text`, points: 1 })
     }
   }
@@ -91,6 +95,17 @@ export function scoreResult(input: RankInput): ScoredResult {
   return { score: breakdown.reduce((n, p) => n + p.points, 0), breakdown }
 }
 
+/**
+ * Rank by score, then break ties deterministically. Without a tiebreak the
+ * order of equally-scored results follows whichever pointer fetch resolved
+ * first, so the same query returns a different winner each time.
+ */
 export function rankResults(results: SearchResult[]): SearchResult[] {
-  return [...results].sort((a, b) => b.score - a.score)
+  return [...results].sort((a, b) => {
+    if (b.score !== a.score) return b.score - a.score
+    const at = Date.parse(a.record?.createdAt ?? '') || 0
+    const bt = Date.parse(b.record?.createdAt ?? '') || 0
+    if (bt !== at) return bt - at
+    return a.ref.uri.localeCompare(b.ref.uri)
+  })
 }
