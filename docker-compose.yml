@@ -1,5 +1,12 @@
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   relay:
+    logging: *default-logging
     build:
       context: .
       dockerfile: Dockerfile.relay
@@ -19,6 +26,7 @@ services:
       - "${ATSEARCH_RELAY_WS_HOSTPORT:-127.0.0.1:12471}:2471"
 
   indexer:
+    logging: *default-logging
     build:
       context: .
       dockerfile: Dockerfile.indexer
@@ -43,6 +51,11 @@ services:
       # Optional: allow using `#sync` events for relay crawl/backfill (defaults true for http://relay:2470).
       ATSEARCH_FIREHOSE_INCLUDE_SYNC: "${ATSEARCH_FIREHOSE_INCLUDE_SYNC:-}"
       ATSEARCH_LEXICON_MODE: "${ATSEARCH_LEXICON_MODE:-auto}"
+      # Bound index growth — a full-firehose subscription otherwise grows forever.
+      ATSEARCH_RETENTION_DAYS: "${ATSEARCH_RETENTION_DAYS:-7}"
+      ATSEARCH_INGEST_BATCH: "${ATSEARCH_INGEST_BATCH:-500}"
+      ATSEARCH_INGEST_FLUSH_MS: "${ATSEARCH_INGEST_FLUSH_MS:-2000}"
+      ATSEARCH_LOG_INGEST: "${ATSEARCH_LOG_INGEST:-}"
       ATSEARCH_LEXICON_ALLOWLIST: "${ATSEARCH_LEXICON_ALLOWLIST:-}"
       ATSEARCH_LEXICON_DENYLIST: "${ATSEARCH_LEXICON_DENYLIST:-}"
     volumes:
@@ -50,6 +63,7 @@ services:
     # No public ports by default (keep indexer private to the Docker network).
 
   query-node:
+    logging: *default-logging
     build:
       context: .
       dockerfile: Dockerfile.query-node
@@ -79,6 +93,7 @@ services:
       - "${ATSEARCH_QUERY_HOSTPORT:-127.0.0.1:13002}:3002"
 
   web:
+    logging: *default-logging
     build:
       context: .
       dockerfile: Dockerfile.demo-client
@@ -97,6 +112,7 @@ services:
   # sibling directory (../at-functions). Enable with:
   #   COMPOSE_PROFILES=functions docker compose up -d --build
   functions:
+    logging: *default-logging
     profiles: ["functions"]
     build:
       context: ../at-functions

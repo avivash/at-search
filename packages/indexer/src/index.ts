@@ -1,11 +1,12 @@
 import 'dotenv/config'
-import { openDb } from './db.js'
+import { openDb, pruneRecordsOlderThan } from './db.js'
 import { createDhtNode } from './dht.js'
 import { startServer } from './server.js'
 import { startPolling } from './poller.js'
 import { startFirehose } from './firehose.js'
 import { startRepoFirehose } from './firehoseRepos.js'
 import { LexiconRegistry, defaultResolveLexiconDoc } from './lexiconRegistry.js'
+import { IngestBatcher } from './ingestBatch.js'
 
 // Render sets `PORT`; support it as a fallback.
 const PORT = parseInt(process.env.ATSEARCH_HTTP_PORT ?? process.env.PORT ?? '3001', 10)
@@ -34,6 +35,17 @@ const NODE_KEY = process.env.ATSEARCH_NODE_KEY
  * now hydrates via Slingshot / direct XRPC. See MIGRATION_MICROCOSM.md.
  */
 const MODE = process.env.ATSEARCH_MODE ?? 'local'
+
+/**
+ * Retention. The index grows without bound on a full-firehose subscription;
+ * 0 disables pruning. Freed pages return to SQLite's freelist and are reused,
+ * so this bounds growth rather than shrinking an existing database.
+ */
+const RETENTION_DAYS = parseFloat(process.env.ATSEARCH_RETENTION_DAYS ?? '0')
+/** Log every ingested record. Off by default: at firehose volume this alone fills disks. */
+const LOG_INGEST = process.env.ATSEARCH_LOG_INGEST === '1'
+const BATCH_SIZE = parseInt(process.env.ATSEARCH_INGEST_BATCH ?? '500', 10)
+const BATCH_FLUSH_MS = parseInt(process.env.ATSEARCH_INGEST_FLUSH_MS ?? '2000', 10)
 
 /**
  * Lexicon handling:
@@ -73,6 +85,52 @@ async function main() {
       : undefined
   if (registry) console.log('Lexicon mode: auto (runtime schema resolution + triage)')
 
+  // Live ingestion batches its writes; seed/poll paths still write directly.
+  const isLive = MODE === 'jetstream' || MODE === 'firehose'
+  const batcher = isLive
+    ? new IngestBatcher(db, { maxBatch: BATCH_SIZE, flushMs: BATCH_FLUSH_MS })
+    : undefined
+  if (batcher) {
+    console.log(`Batching index writes (${BATCH_SIZE} records / ${BATCH_FLUSH_MS}ms)`)
+    for (const sig of ['SIGINT', 'SIGTERM'] as const) {
+      process.on(sig, () => {
+        batcher.stop()
+        process.exit(0)
+      })
+    }
+  }
+
+  // Per-record logging is off by default; report a rate instead.
+  let ingestedSinceReport = 0
+  const onIngested = LOG_INGEST
+    ? (uri: string, cid: string) => console.log(`Indexed: ${uri} @ ${cid}`)
+    : () => {
+        ingestedSinceReport++
+      }
+  if (!LOG_INGEST) {
+    setInterval(() => {
+      if (ingestedSinceReport > 0) {
+        console.log(`Indexed ${ingestedSinceReport} records in the last minute`)
+        ingestedSinceReport = 0
+      }
+    }, 60_000).unref()
+  }
+
+  if (RETENTION_DAYS > 0) {
+    const prune = () => {
+      const cutoff = new Date(Date.now() - RETENTION_DAYS * 86_400_000).toISOString()
+      try {
+        const removed = pruneRecordsOlderThan(db, cutoff)
+        if (removed > 0) console.log(`[retention] pruned ${removed} records older than ${RETENTION_DAYS}d`)
+      } catch (err) {
+        console.warn('[retention] prune failed:', (err as Error).message)
+      }
+    }
+    prune()
+    setInterval(prune, 3_600_000).unref()
+    console.log(`Retention: ${RETENTION_DAYS} days`)
+  }
+
   const dhtNode = await createDhtNode({
     listenPort: DHT_PORT,
     bootstrapPeers: BOOTSTRAP_PEERS,
@@ -96,7 +154,7 @@ async function main() {
         pdsUrl: PDS_URL,
         dids,
         collections,
-        onIngested: (uri, cid) => console.log(`Indexed: ${uri} @ ${cid}`),
+        onIngested,
       })
     }
   } else if (MODE === 'jetstream') {
@@ -114,8 +172,9 @@ async function main() {
       jetstreamUrl: JETSTREAM_URL,
       collections: collections.length ? collections : registry ? ['*'] : undefined,
       registry,
+      batcher,
       onStatus: (msg) => console.log(`[jetstream] ${msg}`),
-      onIngested: (uri, cid) => console.log(`Indexed: ${uri} @ ${cid}`),
+      onIngested,
     })
   } else if (MODE === 'firehose') {
     const collections = (process.env.ATSEARCH_FIREHOSE_COLLECTIONS ?? process.env.ATSEARCH_POLL_COLLECTIONS ?? '')
@@ -132,8 +191,9 @@ async function main() {
       relayUrl: FIREHOSE_URL,
       collections: collections.length ? collections : undefined,
       registry,
+      batcher,
       onStatus: (msg) => console.log(`[firehose] ${msg}`),
-      onIngested: (uri, cid) => console.log(`Indexed: ${uri} @ ${cid}`),
+      onIngested,
     })
   } else {
     console.log('Mode=local: no live ingestion. Run the seed script to populate.')

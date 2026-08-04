@@ -7,6 +7,7 @@ import { ingestRecord } from './ingest.js'
 import { advertiseDescriptor } from './dht.js'
 import type { DhtNode } from './dht.js'
 import type { LexiconRegistry } from './lexiconRegistry.js'
+import type { IngestBatcher } from './ingestBatch.js'
 
 /** Mirrors @atproto/sync Firehose collection filter semantics (exact NSIDs or `prefix.*`). */
 function collectionMatches(patterns: string[] | undefined, collection: string): boolean {
@@ -32,6 +33,8 @@ export interface RepoFirehoseOptions {
   onStatus?: (msg: string) => void
   /** When set, collections are triaged (schema-driven) before ingest. */
   registry?: LexiconRegistry
+  /** When set, index writes are batched into shared transactions. */
+  batcher?: IngestBatcher
 }
 
 /**
@@ -55,7 +58,7 @@ export function startRepoFirehose(
     const decision = opts.registry?.decide(collection) ?? { action: 'ingest' as const }
     if (decision.action !== 'ingest') return
     const uri = `at://${did}/${collection}/${rkey}`
-    const result = ingestRecord(db, uri, cidStr, record, decision.plan)
+    const result = ingestRecord(db, uri, cidStr, record, decision.plan, opts.batcher)
     if (result) {
       await Promise.all(result.descriptors.map((key) => advertiseDescriptor(dhtNode, key)))
       opts.onIngested?.(uri, cidStr)

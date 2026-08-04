@@ -7,6 +7,7 @@ import {
 } from '@atsearch/common'
 import type { ExtractionPlan, IndexedRecord, RawPostRecord, RawProfileRecord } from '@atsearch/common'
 import { upsertRecord, upsertDescriptor } from './db.js'
+import type { IngestBatcher } from './ingestBatch.js'
 
 export interface IngestResult {
   uri: string
@@ -24,6 +25,7 @@ export function ingestRecord(
   cid: string,
   rawRecord: unknown,
   plan?: ExtractionPlan,
+  batcher?: IngestBatcher,
 ): IngestResult | null {
   const parts = uri.replace('at://', '').split('/')
   if (parts.length !== 3) return null
@@ -33,8 +35,7 @@ export function ingestRecord(
   if (!normalized) return null
 
   const indexed_at = new Date().toISOString()
-
-  upsertRecord(db, {
+  const record = {
     uri,
     cid,
     did,
@@ -42,11 +43,18 @@ export function ingestRecord(
     rkey,
     json: JSON.stringify(normalized),
     indexed_at,
-  })
-
+  }
   const descriptors = deriveDescriptorsForRecord(did, collection, rkey, rawRecord, normalized)
-  for (const key of descriptors) {
-    upsertDescriptor(db, key, uri, cid)
+
+  // On the firehose path the batcher commits many records per transaction;
+  // without one (seed, poll) write straight through.
+  if (batcher) {
+    batcher.add({ record, descriptors })
+  } else {
+    upsertRecord(db, record)
+    for (const key of descriptors) {
+      upsertDescriptor(db, key, uri, cid)
+    }
   }
 
   return { uri, cid, descriptors }

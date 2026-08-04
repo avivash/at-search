@@ -405,7 +405,7 @@ This repo includes a Render Blueprint at `render.yaml` that provisions:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `ATSEARCH_MODE` | `local` | `local` (seed script only), `poll` (listRecords for known DIDs), `jetstream` (public Jetstream websocket), or `firehose` (raw `com.atproto.sync.subscribeRepos` via `@atproto/sync`) |
+| `ATSEARCH_MODE` | `local` | `local` (seed script only), `poll` (listRecords for known DIDs), `jetstream` (public Jetstream websocket), or `firehose` (raw `com.atproto.sync.subscribeRepos` via `@atproto/sync`). Live modes batch their writes and should set `ATSEARCH_RETENTION_DAYS`. |
 | `ATSEARCH_PDS_URL` | `https://bsky.social` | PDS base URL |
 | `ATSEARCH_HANDLE` | — | AT handle (for auth; poll-related tooling if used) |
 | `ATSEARCH_PASSWORD` | — | App password |
@@ -418,6 +418,10 @@ This repo includes a Render Blueprint at `render.yaml` that provisions:
 | `ATSEARCH_LEXICON_MODE` | `auto` | `auto`: resolve lexicon schemas at runtime (`_lexicon` DNS → `com.atproto.lexicon.schema`), compile extraction plans, triage collections (text-free ones like likes/follows are dropped). `curated`: fixed collection lists, no resolution. |
 | `ATSEARCH_LEXICON_ALLOWLIST` | — | Comma-separated NSIDs or `prefix.*`. When set, only these collections are ingested; schema-less ones fall back to heuristic extraction. Only applies when `ATSEARCH_LEXICON_MODE=auto`. |
 | `ATSEARCH_LEXICON_DENYLIST` | — | Comma-separated NSIDs or `prefix.*`. Always dropped. Only applies when `ATSEARCH_LEXICON_MODE=auto`. |
+| `ATSEARCH_RETENTION_DAYS` | `0` (compose: `7`) | Delete records indexed more than this many days ago, hourly. `0` disables. **A full-firehose subscription grows without bound — set this on any long-running deployment.** Freed pages are reused by SQLite; the file does not shrink. |
+| `ATSEARCH_INGEST_BATCH` | `500` | Records buffered before an index write transaction commits (live modes only). |
+| `ATSEARCH_INGEST_FLUSH_MS` | `2000` | Max time a buffered record waits before commit. Larger batches mean less disk I/O and a larger loss window on crash. |
+| `ATSEARCH_LOG_INGEST` | — | `1` logs every indexed record. Off by default: at firehose volume this alone can fill a disk. A per-minute count is logged instead. |
 
 ### Query node
 

@@ -23,6 +23,7 @@ import { ingestRecord } from './ingest.js'
 import { advertiseDescriptor } from './dht.js'
 import type { DhtNode } from './dht.js'
 import type { LexiconRegistry } from './lexiconRegistry.js'
+import type { IngestBatcher } from './ingestBatch.js'
 
 /**
  * Collections we subscribe to by default on the Jetstream.
@@ -81,6 +82,8 @@ export interface FirehoseOptions {
   onStatus?: (msg: string) => void
   /** When set, collections are triaged (schema-driven) before ingest. */
   registry?: LexiconRegistry
+  /** When set, index writes are batched into shared transactions. */
+  batcher?: IngestBatcher
 }
 
 export function startFirehose(
@@ -127,7 +130,7 @@ export function startFirehose(
         if (decision.action !== 'ingest') return
 
         const uri = `at://${event.did}/${commit.collection}/${commit.rkey}`
-        const result = ingestRecord(db, uri, commit.cid, commit.record, decision.plan)
+        const result = ingestRecord(db, uri, commit.cid, commit.record, decision.plan, opts.batcher)
 
         if (result) {
           // Advertise all descriptors on the DHT so other query nodes can discover this indexer

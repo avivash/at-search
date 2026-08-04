@@ -155,3 +155,15 @@ export function getLexicon(db: Database.Database, nsid: string): LexiconRow | un
 export function listLexicons(db: Database.Database): LexiconRow[] {
   return db.prepare('SELECT * FROM lexicons ORDER BY nsid').all() as LexiconRow[]
 }
+
+/**
+ * Delete records indexed before `cutoffIso`. Descriptors cascade via the
+ * foreign key, so no orphans are left behind. Returns the number removed.
+ *
+ * Note: SQLite returns freed pages to its freelist rather than shrinking the
+ * file, so this bounds growth going forward — it does not shrink an already
+ * large database. That needs a VACUUM (which needs free space) or a rebuild.
+ */
+export function pruneRecordsOlderThan(db: Database.Database, cutoffIso: string): number {
+  return db.prepare('DELETE FROM records WHERE indexed_at < ?').run(cutoffIso).changes
+}
