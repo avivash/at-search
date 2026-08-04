@@ -48,11 +48,11 @@ export async function buildServer(config: ServerConfig) {
     publicKey: publicKeyToHex(publicKey),
   }))
 
-  fastify.get<{ Params: { descriptorKey: string } }>(
+  fastify.get<{ Params: { descriptorKey: string }; Querystring: { collection?: string } }>(
     '/pointers/:descriptorKey',
     async (request) => {
       const { descriptorKey } = request.params
-      const rows = getPointersByDescriptor(config.db, descriptorKey)
+      const rows = getPointersByDescriptor(config.db, descriptorKey, request.query.collection)
 
       const now = new Date()
       const expiresAt = new Date(now.getTime() + POINTER_TTL_HOURS * 3600 * 1000).toISOString()

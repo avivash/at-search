@@ -89,10 +89,29 @@ export function upsertDescriptor(
   `).run(descriptorKey, uri, cid)
 }
 
+/**
+ * Pointers for a descriptor, newest first.
+ *
+ * The row cap is a recency window, so on a busy index a common token returns
+ * only the newest matches — older records of a niche collection get evicted by
+ * firehose volume. Passing `collection` applies the cap *within* that
+ * collection instead, which is what makes `<text> type:<nsid>` work.
+ */
 export function getPointersByDescriptor(
   db: Database.Database,
   descriptorKey: string,
+  collection?: string,
 ): Array<{ uri: string; cid: string; indexed_at: string }> {
+  if (collection) {
+    return db.prepare(`
+      SELECT r.uri, d.cid, r.indexed_at
+      FROM descriptors d
+      JOIN records r ON r.uri = d.uri AND r.cid = d.cid
+      WHERE d.descriptor_key = ? AND r.collection = ?
+      ORDER BY r.indexed_at DESC
+      LIMIT 100
+    `).all(descriptorKey, collection) as Array<{ uri: string; cid: string; indexed_at: string }>
+  }
   return db.prepare(`
     SELECT r.uri, d.cid, r.indexed_at
     FROM descriptors d

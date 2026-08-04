@@ -47,7 +47,7 @@ export async function runSearch(services: AppServices, opts: SearchOptions): Pro
 
   await Promise.all(
     descriptorKeys.map(async (key) => {
-      const pointers = await fetchPointersForKey(key, opts.dhtNode, indexerUrls)
+      const pointers = await fetchPointersForKey(key, opts.dhtNode, indexerUrls, typeFilter)
       const now = new Date()
 
       for (const ptr of pointers) {
@@ -142,6 +142,7 @@ async function fetchPointersForKey(
   descriptorKey: string,
   dhtNode: DhtNode | null,
   fallbackIndexerUrls: string[],
+  collection?: string,
 ): Promise<PointerRecordSigned[]> {
   const providerUrls: string[] = []
 
@@ -163,7 +164,9 @@ async function fetchPointersForKey(
   await Promise.all(
     providerUrls.map(async (base) => {
       try {
-        const url = `${base}/pointers/${encodeURIComponent(descriptorKey)}`
+        const url =
+          `${base}/pointers/${encodeURIComponent(descriptorKey)}` +
+          (collection ? `?collection=${encodeURIComponent(collection)}` : '')
         const res = await fetch(url, { signal: AbortSignal.timeout(8_000) })
         if (!res.ok) return
         const data = (await res.json()) as { pointers?: PointerRecordSigned[] }
