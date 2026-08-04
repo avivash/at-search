@@ -11,6 +11,17 @@
   /** Expanded "why did this rank here" panel under the score. */
   let showScoreWhy = false
 
+  /**
+   * Constellation returns a true total plus a capped set of examples. Say so
+   * only when examples are actually being withheld — the total is never an
+   * estimate, and labelling a complete list "sample" implies otherwise.
+   */
+  function sampleNote(total: number | undefined, shown: number): string {
+    if (shown === 0) return ''
+    if (total === undefined || shown >= total) return ''
+    return ` · showing ${shown}`
+  }
+
   $: ({ ref, record, matchedDescriptors, score, scoreBreakdown, verified, verificationError, fetchError } = result)
   $: webUrl = recordWebUrl(ref.uri, record.url, record.author?.handle)
   $: meta = lexiconMeta(record.$type)
@@ -184,7 +195,10 @@
           <p class="interactions-line">
             <span class="interactions-k">Likes</span>
             <span class="interactions-v"
-              >{interactions.likesTotal ?? '—'}{interactions.likeSamples.length ? ` · sample` : ''}</span
+              >{interactions.likesTotal ?? '—'}{sampleNote(
+                interactions.likesTotal,
+                interactions.likeSamples.length,
+              )}</span
             >
           </p>
           {#if interactions.likeSamples.length}
@@ -199,7 +213,10 @@
           <p class="interactions-line">
             <span class="interactions-k">Replies</span>
             <span class="interactions-v"
-              >{interactions.repliesTotal ?? '—'}{interactions.replySamples.length ? ` · sample` : ''}</span
+              >{interactions.repliesTotal ?? '—'}{sampleNote(
+                interactions.repliesTotal,
+                interactions.replySamples.length,
+              )}</span
             >
           </p>
           {#if interactions.replySamples.length}
