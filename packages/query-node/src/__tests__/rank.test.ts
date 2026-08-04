@@ -1,4 +1,5 @@
 import { scoreResult, rankResults } from '../rank'
+import { qualifiesForTextQuery } from '../services/search/SearchService'
 import type { IndexedRecord, SearchResult } from '@atsearch/common'
 
 const record = (overrides: Partial<IndexedRecord> = {}): IndexedRecord => ({
@@ -119,5 +120,24 @@ describe('rankResults', () => {
     const mk = (score: number): SearchResult =>
       ({ score, ref: { uri: `at://x/y/${score}`, cid: 'c' } }) as SearchResult
     expect(rankResults([mk(1), mk(9), mk(5)]).map((r) => r.score)).toEqual([9, 5, 1])
+  })
+})
+
+describe('qualifiesForTextQuery', () => {
+
+  it('accepts anything when the query has no text terms (bare type: listing)', () => {
+    expect(qualifiesForTextQuery(['type:at.functions.metadata'], false)).toBe(true)
+  })
+
+  it('requires a text match when the query has text terms', () => {
+    // `echo type:at.functions.metadata` must not return every function in the
+    // collection — only those whose text actually matched.
+    expect(qualifiesForTextQuery(['type:at.functions.metadata'], true)).toBe(false)
+    expect(qualifiesForTextQuery(['type:at.functions.metadata', 'token:echo'], true)).toBe(true)
+    expect(qualifiesForTextQuery(['tag:echo'], true)).toBe(true)
+  })
+
+  it('counts geo and lang as non-text signals', () => {
+    expect(qualifiesForTextQuery(['geo:c2', 'lang:en'], true)).toBe(false)
   })
 })

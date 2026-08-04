@@ -7,6 +7,18 @@ import type { AppServices } from '../createServices.js'
 import type { FetchResult } from '../atproto/RecordService.js'
 import { maybeProfileSearchHit } from './identityLookup.js'
 
+/**
+ * A `type:` key is a candidate *source*, not only a filter: every record in the
+ * collection enters the result set through it. So when the query also carries
+ * text terms, a record must have matched on text — otherwise
+ * `echo type:at.functions.metadata` returns every function rather than the
+ * echoes, and a nonsense word returns them all too.
+ */
+export function qualifiesForTextQuery(matchedDescriptors: string[], hasTextTerms: boolean): boolean {
+  if (!hasTextTerms) return true
+  return matchedDescriptors.some((d) => d.startsWith('token:') || d.startsWith('tag:'))
+}
+
 export interface SearchOptions {
   query: string
   dhtNode: DhtNode | null
@@ -59,8 +71,11 @@ export async function runSearch(services: AppServices, opts: SearchOptions): Pro
 
   const hydrateMemo = new Map<string, Promise<FetchResult>>()
 
+  const hasTextTerms = queryTokens.length > 0
   const candidates = Array.from(candidateMap.values()).filter(
-    (c) => !typeFilter || c.ref.uri.includes(`/${typeFilter}/`),
+    (c) =>
+      (!typeFilter || c.ref.uri.includes(`/${typeFilter}/`)) &&
+      qualifiesForTextQuery(Array.from(c.descriptors), hasTextTerms),
   )
 
   const results = await Promise.all(
