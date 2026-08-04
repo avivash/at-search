@@ -1,0 +1,44 @@
+{
+  "lexicon": 1,
+  "id": "at.functions.recipe",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "A recipe — invented on the spot to prove AT Search can index a lexicon it has never seen.",
+      "key": "any",
+      "record": {
+        "type": "object",
+        "required": ["title", "steps"],
+        "properties": {
+          "title": {
+            "type": "string",
+            "description": "Name of the dish",
+            "maxLength": 200
+          },
+          "steps": {
+            "type": "string",
+            "description": "How to make it",
+            "maxLength": 20000
+          },
+          "ingredients": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Ingredient list"
+          },
+          "tags": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "datetime"
+          },
+          "sourceUrl": {
+            "type": "string",
+            "format": "uri"
+          }
+        }
+      }
+    }
+  }
+}
