@@ -9,7 +9,7 @@ import {
   publicKeyToHex,
 } from '@atsearch/common'
 import type { PointerRecord } from '@atsearch/common'
-import { getPointersByDescriptor, getAllDescriptorKeys, listLexicons } from './db.js'
+import { getPointersByDescriptor, getAllDescriptorKeys, listLexicons, listLexiconPlans } from './db.js'
 import { lexiconMeta, adapterNsids } from '@atsearch/common'
 import type { DhtNode } from './dht.js'
 import { getNodePeerId } from './dht.js'
@@ -86,6 +86,15 @@ export async function buildServer(config: ServerConfig) {
   // these so it normalises hydrated records the same way the indexer did.
   fastify.get<{ Querystring: { plans?: string } }>('/lexicons', async (request) => {
     const withPlans = request.query.plans === '1' || request.query.plans === 'true'
+    // Plan mirroring only needs nsid + plan; skip the heavy row read entirely.
+    if (withPlans) {
+      return {
+        lexicons: listLexiconPlans(config.db).map((r) => ({
+          nsid: r.nsid,
+          plan: JSON.parse(r.plan_json),
+        })),
+      }
+    }
     const rows = listLexicons(config.db)
     const fromRegistry = rows.map((r) => ({
       nsid: r.nsid,
@@ -93,7 +102,6 @@ export async function buildServer(config: ServerConfig) {
       indexable: r.status === 'plan',
       label: lexiconMeta(r.nsid).label,
       ...(r.description ? { description: r.description } : {}),
-      ...(withPlans && r.plan_json ? { plan: JSON.parse(r.plan_json) } : {}),
     }))
     // Adapter-covered lexicons may never hit the registry — include them too.
     const fromAdapters = adapterNsids()

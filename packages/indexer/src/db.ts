@@ -152,6 +152,13 @@ export function getLexicon(db: Database.Database, nsid: string): LexiconRow | un
   return db.prepare('SELECT * FROM lexicons WHERE nsid = ?').get(nsid) as LexiconRow | undefined
 }
 
+/** nsid + compiled plan only — `doc_json` is large and never needed for mirroring. */
+export function listLexiconPlans(db: Database.Database): Array<{ nsid: string; plan_json: string }> {
+  return db
+    .prepare("SELECT nsid, plan_json FROM lexicons WHERE status = 'plan' AND plan_json IS NOT NULL")
+    .all() as Array<{ nsid: string; plan_json: string }>
+}
+
 export function listLexicons(db: Database.Database): LexiconRow[] {
   return db.prepare('SELECT * FROM lexicons ORDER BY nsid').all() as LexiconRow[]
 }

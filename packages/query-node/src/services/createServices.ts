@@ -14,7 +14,9 @@ export interface AppServices {
 
 export function createServices(): AppServices {
   const env = readMicrocosmEnv()
-  const plans = new LexiconPlanCache(env.indexerUrls)
+  const plans = new LexiconPlanCache(env.indexerUrls, {
+    onRefresh: (n) => console.log(`[plans] mirrored ${n} extraction plans`),
+  })
   const record = new RecordService(env, plans.lookup)
   const identity = new IdentityService(env)
   const backlinks = new BacklinkService(env, record)

@@ -74,7 +74,7 @@ export class LexiconPlanCache {
       this.indexerUrls.map(async (base) => {
         try {
           const res = await doFetch(`${base.replace(/\/$/, '')}/lexicons?plans=1`, {
-            signal: AbortSignal.timeout(8_000),
+            signal: AbortSignal.timeout(20_000),
           })
           if (!res.ok) return
           const data = (await res.json()) as { lexicons?: LexiconRow[] }
