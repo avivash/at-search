@@ -26,10 +26,17 @@ interface LexiconRow {
 }
 
 const DEFAULT_TTL_MS = 600_000
+/**
+ * A failed round must not start the full TTL: the query node boots alongside
+ * the indexer (`depends_on` waits for start, not readiness), so the first
+ * attempt often lands before the indexer is listening. Waiting out the TTL
+ * after that leaves the cache silently empty for ten minutes.
+ */
+const RETRY_MS = 15_000
 
 export class LexiconPlanCache {
   private plans = new Map<string, ExtractionPlan>()
-  private lastFetchedAt = 0
+  private nextAttemptAt = 0
   private inFlight: Promise<void> | null = null
   private readonly ttlMs: number
 
@@ -50,7 +57,7 @@ export class LexiconPlanCache {
   /** Refresh if stale. Never throws — a stale set beats no set. */
   async refresh(): Promise<void> {
     const now = this.opts.now?.() ?? Date.now()
-    if (this.lastFetchedAt && now - this.lastFetchedAt < this.ttlMs) return
+    if (now < this.nextAttemptAt) return
     if (this.inFlight) return this.inFlight
 
     this.inFlight = this.fetchAll(now).finally(() => {
@@ -89,11 +96,13 @@ export class LexiconPlanCache {
     )
 
     // Only replace the working set if we actually learned something, so a bad
-    // round never blanks a good cache.
+    // round never blanks a good cache — and retry soon rather than at TTL.
     if (merged.size > 0) {
       this.plans = merged
-      this.opts.onRefresh?.(merged.size)
+      this.nextAttemptAt = now + this.ttlMs
+    } else {
+      this.nextAttemptAt = now + RETRY_MS
     }
-    this.lastFetchedAt = now
+    this.opts.onRefresh?.(merged.size)
   }
 }

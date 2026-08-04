@@ -96,3 +96,43 @@ describe('LexiconPlanCache', () => {
     expect(lookup('com.example.recipe')?.nsid).toBe('com.example.recipe')
   })
 })
+
+describe('LexiconPlanCache retry behaviour', () => {
+  it('retries soon after a failed fetch instead of waiting out the full TTL', async () => {
+    let calls = 0
+    let now = 1_000_000
+    let failing = true
+    const cache = new LexiconPlanCache(['http://indexer:3001'], {
+      ttlMs: 600_000,
+      now: () => now,
+      fetchImpl: async () => {
+        calls++
+        if (failing) throw new Error('ECONNREFUSED — indexer still starting')
+        return respond({ lexicons: [{ nsid: 'com.example.recipe', plan: plan('com.example.recipe') }] })
+      },
+    })
+
+    await cache.refresh() // fails at boot
+    expect(calls).toBe(1)
+    expect(cache.get('com.example.recipe')).toBeUndefined()
+
+    now += 20_000 // past the short failure retry, still far inside the 10-minute TTL
+    failing = false
+    await cache.refresh()
+
+    expect(calls).toBe(2)
+    expect(cache.get('com.example.recipe')).toBeDefined()
+  })
+
+  it('reports a failed/empty refresh so an empty cache is never silent', async () => {
+    const seen: number[] = []
+    const cache = new LexiconPlanCache(['http://indexer:3001'], {
+      onRefresh: (n) => seen.push(n),
+      fetchImpl: async () => {
+        throw new Error('unreachable')
+      },
+    })
+    await cache.refresh()
+    expect(seen).toEqual([0])
+  })
+})
