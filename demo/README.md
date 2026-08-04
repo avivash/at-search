@@ -6,15 +6,21 @@ to the search engine and nobody telling it the app exists.
 
 ## What it shows
 
-1. AT Search has never heard of `at.functions.recipe` — zero results.
-2. A lexicon is invented on the spot and published as a
-   `com.atproto.lexicon.schema` record.
-3. A record of that type is written to a normal AT Proto repo.
-4. AT Search resolves the schema off the network (DNS `_lexicon.functions.at`
-   → DID → repo → schema), compiles it into an extraction plan, and indexes the
-   record — correct title, body, and tags.
-5. Searching an **ingredient** finds it too, proving the compiler understood the
-   `ingredients` array, not just the obvious fields.
+Four beats, roughly 100 seconds:
+
+1. **What it taught itself.** ~190 record types compiled by reading published
+   schemas — a music scrobbler, a biodiversity database, a book catalogue, an
+   RPG, a drawing app. Zero lines of code written for any of them.
+2. **What it refused.** ~75 collections auto-detected as holding no readable
+   text — likes and follows, but also *other apps'* stats records. That triage
+   is what makes reading the whole firehose affordable.
+3. **One query, many apps.** A single search returning results from five
+   unrelated lexicons at once.
+4. **Invent one live.** A lexicon written moments earlier is published, a
+   record of that type is written to a normal repo, and it turns up in search —
+   with body text extracted from a custom field name nothing was told about.
+   The closing search matches on a word that appears *only inside an array*,
+   and the score breakdown shows why.
 
 ## Run it
 
