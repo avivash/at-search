@@ -6,60 +6,6 @@ A decentralized search and discovery layer for AT Protocol objects, built as a K
 
 ---
 
-## Try it from the command line
-
-The public instance is at `https://atsearch.network/api`. No key, no account, no SDK: it is a plain
-JSON API, so `curl` is enough.
-
-**Search across every indexed app at once.** Free text matches any lexicon the
-index understands:
-
-```bash
-curl -s "https://atsearch.network/api/search?q=gnocchi+nutmeg" | jq '.results[0] | {type: .record."$type", title: .record.title, score}'
-```
-
-**List everything in one lexicon.** A bare `type:` filter returns that
-collection, whoever published it and wherever their PDS lives:
-
-```bash
-curl -s "https://atsearch.network/api/search?q=type:app.rocksky.scrobble" | jq -r '.results[] | .record.title'
-```
-
-**Search inside one lexicon.** Combine free text with the filter to narrow to a
-single app:
-
-```bash
-curl -s "https://atsearch.network/api/search?q=closer+type:app.rocksky.scrobble" | jq -r '.results[] | .record.title'
-```
-
-**Ask why a result ranked where it did.** Every result carries the components
-that add up to its score:
-
-```bash
-curl -s "https://atsearch.network/api/search?q=gnocchi+nutmeg" | jq -r '.results[0].scoreBreakdown[] | "\(.points)\t\(.label)"'
-```
-
-```
-5	every search term matched
-3	"gnocchi" in the title
-1	"nutmeg" in the text
-1	verified against the PDS
-```
-
-**See what the index has taught itself.** Every lexicon it has resolved, with
-whether it found searchable text in it:
-
-```bash
-curl -s "https://atsearch.network/api/lexicons" | jq -r '.lexicons[] | select(.status=="plan") | .nsid' | head -20
-```
-
-Each result is a strong reference (`ref.uri` + `ref.cid`) plus the normalised
-`record`, `score`, and `scoreBreakdown`. Nothing is served from the index alone:
-records are fetched and CID-verified against their live PDS before they are
-returned.
-
----
-
 ## Monorepo layout and tooling
 
 This repo is a **single workspace**: the root `package.json` lists `"workspaces": ["packages/*"]`. **pnpm** is the supported tool for installs and scripts (`pnpm install`, `pnpm run …`); the lockfile is **`pnpm-lock.yaml`**. Run installs from the **repository root** so `workspace:*` links resolve.
@@ -337,6 +283,60 @@ pnpm run build
 ```bash
 pnpm run test
 ```
+
+---
+
+## Try it from the command line
+
+The public instance is at `https://atsearch.network/api`. No key, no account, no SDK: it is a plain
+JSON API, so `curl` is enough.
+
+**Search across every indexed app at once.** Free text matches any lexicon the
+index understands:
+
+```bash
+curl -s "https://atsearch.network/api/search?q=gnocchi+nutmeg" | jq '.results[0] | {type: .record."$type", title: .record.title, score}'
+```
+
+**List everything in one lexicon.** A bare `type:` filter returns that
+collection, whoever published it and wherever their PDS lives:
+
+```bash
+curl -s "https://atsearch.network/api/search?q=type:app.rocksky.scrobble" | jq -r '.results[] | .record.title'
+```
+
+**Search inside one lexicon.** Combine free text with the filter to narrow to a
+single app:
+
+```bash
+curl -s "https://atsearch.network/api/search?q=closer+type:app.rocksky.scrobble" | jq -r '.results[] | .record.title'
+```
+
+**Ask why a result ranked where it did.** Every result carries the components
+that add up to its score:
+
+```bash
+curl -s "https://atsearch.network/api/search?q=gnocchi+nutmeg" | jq -r '.results[0].scoreBreakdown[] | "\(.points)\t\(.label)"'
+```
+
+```
+5	every search term matched
+3	"gnocchi" in the title
+1	"nutmeg" in the text
+1	verified against the PDS
+```
+
+**See what the index has taught itself.** Every lexicon it has resolved, with
+whether it found searchable text in it:
+
+```bash
+curl -s "https://atsearch.network/api/lexicons" | jq -r '.lexicons[] | select(.status=="plan") | .nsid' | head -20
+```
+
+Each result is a strong reference (`ref.uri` + `ref.cid`) plus the normalised
+`record`, `score`, and `scoreBreakdown`. Nothing is served from the index alone:
+records are fetched and CID-verified against their live PDS before they are
+returned.
 
 ---
 
