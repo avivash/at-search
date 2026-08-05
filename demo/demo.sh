@@ -34,7 +34,7 @@ recipeHits() { search "type:$NSID" | node -e 'let s="";process.stdin.on("data",d
 clear
 pause 1
 
-type "# AT Search — one index for every app on AT Protocol."
+type "# AT Search: one index for every app on AT Protocol."
 echo; pause 1
 type "# Every app invents its own record type. Nobody coordinates."
 echo; pause 2
@@ -55,7 +55,7 @@ let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{
               "ai.rizom.brain.note","social.coves.community.post"]
              .filter(n=>foreign.some(f=>f.nsid===n));
   for(const n of pick.slice(0,7)) console.log("  " + n);
-  console.log("\n  " + plan.length + " compiled — " + foreign.length + " of them nothing to do with Bluesky.");
+  console.log("\n  " + plan.length + " compiled. " + foreign.length + " of them nothing to do with Bluesky.");
   console.log("  Lines of code written for any of them: 0");
 })'
 pause 5
@@ -70,7 +70,7 @@ let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{
   const nt=l.filter(x=>x.status==="no-text");
   for(const x of nt.filter(x=>/like|follow|block|repost|stats/.test(x.nsid)).slice(0,6))
     console.log("  " + x.nsid);
-  console.log("\n  " + nt.length + " dropped before indexing — likes, follows, and other apps stats too.");
+  console.log("\n  " + nt.length + " dropped before indexing: likes, follows, and other apps stats too.");
   console.log("  That is what makes reading the entire firehose affordable.");
 })'
 pause 5
@@ -135,7 +135,7 @@ pause 0.5
 search "type:$NSID" | node -e '
 let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{
   const r=(JSON.parse(s).results||[]).find(x=>x.ref.uri.includes("/gnocchi"))||(JSON.parse(s).results||[])[0];
-  if(!r){console.log("  (not indexed yet — see demo/README.md)");return}
+  if(!r){console.log("  (not indexed yet, see demo/README.md)");return}
   console.log("  type   " + r.record.$type);
   console.log("  title  " + r.record.title);
   console.log("  tags   " + (r.record.tags||[]).join(", "));
@@ -146,7 +146,7 @@ echo
 
 type "# It read the schema and worked out which fields held searchable text."
 echo; pause 1
-type "# 'nutmeg' appears only inside the ingredients array — ask for both words:"
+type "# 'nutmeg' appears only inside the ingredients array. ask for both words:"
 echo; pause 1
 type "curl -s \$ATSEARCH/search?q=gnocchi+nutmeg+type:$NSID"
 echo; pause 0.5
@@ -160,7 +160,7 @@ let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{
 pause 4
 echo
 
-type "# No code was written for recipes. Or for any of the other 187."
+type "# No code was written for recipes. Or for any of the others."
 echo; pause 1.5
 type "# Publish your lexicon and AT Search indexes you too."
 echo; pause 3

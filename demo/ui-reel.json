@@ -37,15 +37,12 @@
     },
     {
       "action": "wait",
-      "ms": 6000
+      "ms": 2500
     },
     {
       "action": "screenshot",
-      "name": "01-recipe-above-post"
-    },
-    {
-      "action": "wait",
-      "ms": 2500
+      "name": "01-recipe-above-post",
+      "waitFor": "button[title=\"Why this result ranked here\"]"
     },
     {
       "action": "click",
@@ -61,7 +58,7 @@
     },
     {
       "action": "wait",
-      "ms": 1500
+      "ms": 1000
     },
     {
       "action": "fill",
@@ -79,11 +76,12 @@
     },
     {
       "action": "wait",
-      "ms": 6000
+      "ms": 2500
     },
     {
       "action": "screenshot",
-      "name": "03-many-apps"
+      "name": "03-many-apps",
+      "waitFor": "button[title=\"Why this result ranked here\"]"
     },
     {
       "action": "wait",
