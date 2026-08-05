@@ -29,7 +29,7 @@
     {
       "action": "type",
       "selector": "input[type=search]",
-      "text": "gnocchi"
+      "text": "gnocchi nutmeg"
     },
     {
       "action": "keyboard",
