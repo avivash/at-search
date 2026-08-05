@@ -4,6 +4,8 @@ Teaches AT Search an app that did not exist when it was deployed. Publish a
 brand-new lexicon, write a record, watch it become searchable, with no change
 to the search engine and nobody telling it the app exists.
 
+[![asciicast](https://asciinema.org/a/CdAcDyY9OjAS2v56.svg)](https://asciinema.org/a/CdAcDyY9OjAS2v56)
+
 ## What it shows
 
 Four beats, roughly 100 seconds:

@@ -1,91 +1,41 @@
 {
   "url": "https://atsearch.network",
-  "viewport": {
-    "width": 1280,
-    "height": 800
-  },
+  "viewport": { "width": 1280, "height": 800 },
   "colorScheme": "dark",
   "outputFormat": "mp4",
   "speed": 1.0,
-  "cursor": {
-    "style": "pointer"
-  },
-  "chrome": {
-    "url": true
-  },
+  "cursor": { "style": "pointer" },
+  "chrome": { "url": true },
   "background": {
-    "gradient": {
-      "from": "#1a1a1f",
-      "to": "#0a0a0c"
-    },
+    "gradient": { "from": "#1a1a1f", "to": "#0a0a0c" },
     "borderRadius": 12
   },
   "waitForSelector": "input[type=search]",
   "steps": [
-    {
-      "action": "wait",
-      "ms": 1200
-    },
-    {
-      "action": "type",
-      "selector": "input[type=search]",
-      "text": "gnocchi nutmeg"
-    },
-    {
-      "action": "keyboard",
-      "key": "Enter"
-    },
-    {
-      "action": "wait",
-      "ms": 2500
-    },
-    {
-      "action": "screenshot",
-      "name": "01-recipe-above-post",
-      "waitFor": "button[title=\"Why this result ranked here\"]"
-    },
-    {
-      "action": "click",
-      "selector": "button[title=\"Why this result ranked here\"] >> nth=0"
-    },
-    {
-      "action": "wait",
-      "ms": 3000
-    },
-    {
-      "action": "screenshot",
-      "name": "02-why-expanded"
-    },
-    {
-      "action": "wait",
-      "ms": 1000
-    },
-    {
-      "action": "fill",
-      "selector": "input[type=search]",
-      "text": ""
-    },
-    {
-      "action": "type",
-      "selector": "input[type=search]",
-      "text": "type:app.rocksky.scrobble"
-    },
-    {
-      "action": "keyboard",
-      "key": "Enter"
-    },
-    {
-      "action": "wait",
-      "ms": 2500
-    },
-    {
-      "action": "screenshot",
-      "name": "03-many-apps",
-      "waitFor": "button[title=\"Why this result ranked here\"]"
-    },
-    {
-      "action": "wait",
-      "ms": 3000
-    }
+    { "action": "wait", "ms": 1200 },
+
+    { "action": "type", "selector": "input[type=search]", "text": "gnocchi nutmeg" },
+    { "action": "keyboard", "key": "Enter" },
+    { "action": "wait", "ms": 12000 },
+    { "action": "screenshot", "name": "01-invented-lexicon-ranks-first" },
+
+    { "action": "click", "selector": "button[title=\"Why this result ranked here\"] >> nth=0" },
+    { "action": "wait", "ms": 3000 },
+    { "action": "screenshot", "name": "02-why-expanded" },
+    { "action": "wait", "ms": 1000 },
+
+    { "action": "fill", "selector": "input[type=search]", "text": "" },
+    { "action": "type", "selector": "input[type=search]", "text": "type:app.rocksky.scrobble" },
+    { "action": "keyboard", "key": "Enter" },
+    { "action": "wait", "ms": 12000 },
+    { "action": "screenshot", "name": "03-a-whole-third-party-app" },
+    { "action": "wait", "ms": 2500 },
+
+    { "action": "fill", "selector": "input[type=search]", "text": "" },
+    { "action": "type", "selector": "input[type=search]", "text": "closer type:app.rocksky.scrobble" },
+    { "action": "keyboard", "key": "Enter" },
+    { "action": "wait", "ms": 12000 },
+    { "action": "screenshot", "name": "04-search-inside-that-app" },
+    { "action": "wait", "ms": 3000 }
   ]
 }

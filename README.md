@@ -2,6 +2,62 @@
 
 A decentralized search and discovery layer for AT Protocol objects, built as a Kademlia DHT overlay that routes queries to indexers without replacing AT Protocol's native identity, repo, or PDS model.
 
+[![asciicast](https://asciinema.org/a/CdAcDyY9OjAS2v56.svg)](https://asciinema.org/a/CdAcDyY9OjAS2v56)
+
+---
+
+## Try it from the command line
+
+The public instance is at `https://atsearch.network/api`. No key, no account, no SDK: it is a plain
+JSON API, so `curl` is enough.
+
+**Search across every indexed app at once.** Free text matches any lexicon the
+index understands:
+
+```bash
+curl -s "https://atsearch.network/api/search?q=gnocchi+nutmeg" | jq '.results[0] | {type: .record."$type", title: .record.title, score}'
+```
+
+**List everything in one lexicon.** A bare `type:` filter returns that
+collection, whoever published it and wherever their PDS lives:
+
+```bash
+curl -s "https://atsearch.network/api/search?q=type:app.rocksky.scrobble" | jq -r '.results[] | .record.title'
+```
+
+**Search inside one lexicon.** Combine free text with the filter to narrow to a
+single app:
+
+```bash
+curl -s "https://atsearch.network/api/search?q=closer+type:app.rocksky.scrobble" | jq -r '.results[] | .record.title'
+```
+
+**Ask why a result ranked where it did.** Every result carries the components
+that add up to its score:
+
+```bash
+curl -s "https://atsearch.network/api/search?q=gnocchi+nutmeg" | jq -r '.results[0].scoreBreakdown[] | "\(.points)\t\(.label)"'
+```
+
+```
+5	every search term matched
+3	"gnocchi" in the title
+1	"nutmeg" in the text
+1	verified against the PDS
+```
+
+**See what the index has taught itself.** Every lexicon it has resolved, with
+whether it found searchable text in it:
+
+```bash
+curl -s "https://atsearch.network/api/lexicons" | jq -r '.lexicons[] | select(.status=="plan") | .nsid' | head -20
+```
+
+Each result is a strong reference (`ref.uri` + `ref.cid`) plus the normalised
+`record`, `score`, and `scoreBreakdown`. Nothing is served from the index alone:
+records are fetched and CID-verified against their live PDS before they are
+returned.
+
 ---
 
 ## Monorepo layout and tooling
@@ -410,31 +466,6 @@ ATSEARCH_DB_PATH=./data/indexer.db \
 ATSEARCH_HTTP_PORT=3001 \
   pnpm --filter @atsearch/indexer run dev
 ```
-
----
-
-## Deploy to Render.com
-
-This repo includes a Render Blueprint at `render.yaml` that provisions:
-
-- `at-search-web` (public): static demo + `/api` proxy
-- `at-search-query-node` (private): Fastify API
-- `at-search-indexer` (private): Fastify indexer + SQLite disk
-
-### Steps
-
-1. Push this repo to GitHub/GitLab.
-2. In Render, choose **New → Blueprint** and select the repository.
-3. Render will detect `render.yaml` and propose creating the three services.
-4. After deploy completes, open the `at-search-web` URL; the UI will call `/api/*` on the same origin.
-
-### Notes (Render limitations)
-
-- Render services only expose a single HTTP port. The Blueprint sets `ATSEARCH_DHT_PORT=0` to disable DHT listeners by default.
-- The indexer uses an attached disk mounted at `/data` and stores SQLite at `/data/indexer.db`.
-- If you want to run `ATSEARCH_MODE=poll`, set `ATSEARCH_MODE=poll`, `ATSEARCH_PDS_URL`, and `ATSEARCH_POLL_DIDS` on the `at-search-indexer` service in Render.
-
----
 
 ## Environment variables
 
