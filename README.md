@@ -24,12 +24,12 @@ Defined in the root `package.json` and meant to be run from the repo root:
 | Command | Effect |
 |---------|--------|
 | `pnpm install` | Installs all workspace dependencies and links `workspace:*` packages. |
-| `pnpm run build` | `pnpm -r run build` — runs `build` in every package that defines it. |
+| `pnpm run build` | `pnpm -r run build`: runs `build` in every package that defines it. |
 | `pnpm run dev` | Runs each package’s `dev` script in parallel (useful less often than running one package’s dev server). |
 | `pnpm run test` | Runs `test` in each package that defines it (**@atsearch/common** and **@atsearch/indexer**). |
 | `pnpm run lint` | `tsc --noEmit` / `svelte-check` per package where configured. |
-| `pnpm run seed` | `pnpm --filter @atsearch/indexer run seed` — writes seed data into `ATSEARCH_DB_PATH` (default `./data/indexer.db`). |
-| `pnpm run demo` | `bash scripts/run-demo.sh` — builds packages, seeds, then starts indexer (**Node**), query node (**Node**), and the demo (**pnpm** + Vite). See that script for ports and env. |
+| `pnpm run seed` | `pnpm --filter @atsearch/indexer run seed`: writes seed data into `ATSEARCH_DB_PATH` (default `./data/indexer.db`). |
+| `pnpm run demo` | `bash scripts/run-demo.sh`: builds packages, seeds, then starts indexer (**Node**), query node (**Node**), and the demo (**pnpm** + Vite). See that script for ports and env. |
 
 **Work on one package:** `cd packages/<name> && pnpm run dev`, or from root `pnpm --filter @atsearch/<name> run <script>` (e.g. `pnpm --filter @atsearch/query-node run dev`).
 
@@ -105,15 +105,15 @@ cid: bafyreiXXXXXX
 - The **CID** is the immutable content hash for that specific version of the record.
 - Together `uri + cid` uniquely identifies a specific version of a specific record.
 
-**The current serving location** (PDS endpoint) is derived at query time by resolving the DID — it is not stored as part of identity and can change without invalidating the reference.
+**The current serving location** (PDS endpoint) is derived at query time by resolving the DID; it is not stored as part of identity and can change without invalidating the reference.
 
 ### Key invariants
 
 | Scenario | Behavior |
 |----------|----------|
-| Same CID, different URIs | Never deduplicated — these are different objects |
-| Same URI, new CID | Treated as a new version — both uri+cid pairs are indexed |
-| PDS migration | Identity unchanged — re-resolved from DID at fetch time |
+| Same CID, different URIs | Never deduplicated; these are different objects |
+| Same URI, new CID | Treated as a new version; both uri+cid pairs are indexed |
+| PDS migration | Identity unchanged; re-resolved from DID at fetch time |
 | Stale DHT entry | Ignored if pointer `expiresAt` is in the past |
 | Duplicate providers | Merged; candidates deduplicated by `uri + cid` |
 
@@ -153,15 +153,15 @@ Each descriptor key is hashed as `sha256("atsearch:v1:" + key)` before being use
 
 ## Cross-lexicon indexing (lexicon registry)
 
-AT Search indexes the whole ATmosphere — any app, any lexicon — without per-app code. Lexicons are self-describing at runtime: an NSID resolves via a DNS TXT record (`_lexicon.{authority}` → DID) to a `com.atproto.lexicon.schema` record in the authority's repo. The indexer uses that to teach itself how to index unknown collections.
+AT Search indexes the whole ATmosphere (any app, any lexicon) without per-app code. Lexicons are self-describing at runtime: an NSID resolves via a DNS TXT record (`_lexicon.{authority}` → DID) to a `com.atproto.lexicon.schema` record in the authority's repo. The indexer uses that to teach itself how to index unknown collections.
 
-**Normalisation ladder** (`packages/common/src/normalize.ts`): each record goes through the first tier that applies —
+**Normalisation ladder** (`packages/common/src/normalize.ts`): each record goes through the first tier that applies:
 
-1. **Hand-written adapter** — rich extraction for ~10 popular lexicons (Bluesky, WhiteWind, Frontpage, Linkat, AT Functions).
-2. **Compiled extraction plan** — for unknown collections, the resolved lexicon schema is compiled into a plan (`packages/common/src/lexicon/plan.ts`): which fields are title/body text, tags, dates, languages, URLs, geo. Classification is schema-structure-first (string formats like `at-uri`/`did`/`datetime` are never indexed as text; `const`/`enum` fields are skipped; `knownValues` become tags), field names second.
-3. **Heuristic fallback** — field-name probing for collections with no published schema.
+1. **Hand-written adapter**: rich extraction for ~10 popular lexicons (Bluesky, WhiteWind, Frontpage, Linkat, AT Functions).
+2. **Compiled extraction plan**: for unknown collections, the resolved lexicon schema is compiled into a plan (`packages/common/src/lexicon/plan.ts`): which fields are title/body text, tags, dates, languages, URLs, geo. Classification is schema-structure-first (string formats like `at-uri`/`did`/`datetime` are never indexed as text; `const`/`enum` fields are skipped; `knownValues` become tags), field names second.
+3. **Heuristic fallback**: field-name probing for collections with no published schema.
 
-**Triage** (`packages/indexer/src/lexiconRegistry.ts`): before ingesting, the consumer asks the registry to `decide(nsid)`. Collections whose schema has no searchable text (likes, follows, reposts) compile to a non-indexable plan and are dropped at a map lookup — which is what makes subscribing to the entire firehose (`ATSEARCH_LEXICON_MODE=auto`, the default) affordable. Decisions are cached in SQLite (`lexicons` table); failed resolutions are negative-cached with 1h → 6h → 24h → 7d backoff; successful ones refresh weekly (schemas evolve). Malformed collection names are rejected by syntactic NSID validation before any network work, and background resolutions run through a small semaphore (6 in-flight, bounded FIFO overflow) so a burst of novel NSIDs can't amplify into unbounded DNS/HTTP fan-out.
+**Triage** (`packages/indexer/src/lexiconRegistry.ts`): before ingesting, the consumer asks the registry to `decide(nsid)`. Collections whose schema has no searchable text (likes, follows, reposts) compile to a non-indexable plan and are dropped at a map lookup, which is what makes subscribing to the entire firehose (`ATSEARCH_LEXICON_MODE=auto`, the default) affordable. Decisions are cached in SQLite (`lexicons` table); failed resolutions are negative-cached with 1h → 6h → 24h → 7d backoff; successful ones refresh weekly (schemas evolve). Malformed collection names are rejected by syntactic NSID validation before any network work, and background resolutions run through a small semaphore (6 in-flight, bounded FIFO overflow) so a burst of novel NSIDs can't amplify into unbounded DNS/HTTP fan-out.
 
 Both `GET /lexicons` endpoints (indexer and query node) expose what the registry has learned: each known NSID with its status (`adapter` / `plan` / `no-text` / `unresolvable`) and the schema's description.
 
@@ -177,7 +177,7 @@ The `type:` term may appear anywhere in the query and is case-insensitive.
 
 ---
 
-## Backfill — rebuilding the index from repos
+## Backfill: rebuilding the index from repos
 
 Jetstream and the firehose carry **live commits only**. A record written before
 an index existed is invisible to it forever, which makes a streamed index
@@ -376,12 +376,12 @@ Then:
 ### Manual start
 
 ```bash
-# Terminal 1 — indexer
+# Terminal 1: indexer
 cd packages/indexer
 ATSEARCH_LIBP2P_LISTEN_HOST=127.0.0.1 \
 ATSEARCH_DB_PATH=../../data/indexer.db ATSEARCH_HTTP_PORT=3001 pnpm run dev
 
-# Terminal 2 — query node
+# Terminal 2: query node
 cd packages/query-node
 USE_MICROCOSM=true \
 MICROCOSM_SLINGSHOT_BASE_URL=https://slingshot.microcosm.blue \
@@ -391,7 +391,7 @@ APP_USER_AGENT='at-search-demo/0.1 (manual)' \
 ATSEARCH_LIBP2P_LISTEN_HOST=127.0.0.1 \
 ATSEARCH_HTTP_PORT=3002 ATSEARCH_INDEXER_URLS=http://localhost:3001 pnpm run dev
 
-# Terminal 3 — demo client
+# Terminal 3: demo client
 cd packages/demo-client
 # The dev server proxies /api → query-node (see vite.config.ts), so you don't need VITE_QUERY_API_URL.
 # If you changed the query node port, set VITE_QUERY_PROXY_TARGET accordingly.
@@ -417,9 +417,9 @@ ATSEARCH_HTTP_PORT=3001 \
 
 This repo includes a Render Blueprint at `render.yaml` that provisions:
 
-- `at-search-web` (public) — static demo + `/api` proxy
-- `at-search-query-node` (private) — Fastify API
-- `at-search-indexer` (private) — Fastify indexer + SQLite disk
+- `at-search-web` (public): static demo + `/api` proxy
+- `at-search-query-node` (private): Fastify API
+- `at-search-indexer` (private): Fastify indexer + SQLite disk
 
 ### Steps
 
@@ -444,34 +444,34 @@ This repo includes a Render Blueprint at `render.yaml` that provisions:
 |----------|---------|-------------|
 | `ATSEARCH_MODE` | `local` | `local` (seed script only), `poll` (listRecords for known DIDs), `jetstream` (public Jetstream websocket), or `firehose` (raw `com.atproto.sync.subscribeRepos` via `@atproto/sync`). Live modes batch their writes and should set `ATSEARCH_RETENTION_DAYS`. |
 | `ATSEARCH_PDS_URL` | `https://bsky.social` | PDS base URL |
-| `ATSEARCH_HANDLE` | — | AT handle (for auth; poll-related tooling if used) |
-| `ATSEARCH_PASSWORD` | — | App password |
-| `ATSEARCH_DHT_BOOTSTRAP` | — | Comma-separated bootstrap multiaddrs |
+| `ATSEARCH_HANDLE` | - | AT handle (for auth; poll-related tooling if used) |
+| `ATSEARCH_PASSWORD` | - | App password |
+| `ATSEARCH_DHT_BOOTSTRAP` | - | Comma-separated bootstrap multiaddrs |
 | `ATSEARCH_DHT_PORT` | `8001` | libp2p TCP listen port |
 | `ATSEARCH_LIBP2P_LISTEN_HOST` | `127.0.0.1` | IPv4 for libp2p TCP bind (`0.0.0.0` can fail on some hosts with `ERR_NO_VALID_ADDRESSES`) |
 | `ATSEARCH_HTTP_PORT` | `3001` | HTTP server port |
 | `ATSEARCH_DB_PATH` | `./data/indexer.db` | SQLite database path |
-| `ATSEARCH_NODE_KEY` | — | Ed25519 private key hex (persisted signing key) |
+| `ATSEARCH_NODE_KEY` | - | Ed25519 private key hex (persisted signing key) |
 | `ATSEARCH_LEXICON_MODE` | `auto` | `auto`: resolve lexicon schemas at runtime (`_lexicon` DNS → `com.atproto.lexicon.schema`), compile extraction plans, triage collections (text-free ones like likes/follows are dropped). `curated`: fixed collection lists, no resolution. |
-| `ATSEARCH_LEXICON_ALLOWLIST` | — | Comma-separated NSIDs or `prefix.*`. When set, only these collections are ingested; schema-less ones fall back to heuristic extraction. Only applies when `ATSEARCH_LEXICON_MODE=auto`. |
-| `ATSEARCH_LEXICON_DENYLIST` | — | Comma-separated NSIDs or `prefix.*`. Always dropped. Only applies when `ATSEARCH_LEXICON_MODE=auto`. |
-| `ATSEARCH_RETENTION_DAYS` | `0` (compose: `7`) | Delete records indexed more than this many days ago, hourly. `0` disables. **A full-firehose subscription grows without bound — set this on any long-running deployment.** Freed pages are reused by SQLite; the file does not shrink. |
+| `ATSEARCH_LEXICON_ALLOWLIST` | - | Comma-separated NSIDs or `prefix.*`. When set, only these collections are ingested; schema-less ones fall back to heuristic extraction. Only applies when `ATSEARCH_LEXICON_MODE=auto`. |
+| `ATSEARCH_LEXICON_DENYLIST` | - | Comma-separated NSIDs or `prefix.*`. Always dropped. Only applies when `ATSEARCH_LEXICON_MODE=auto`. |
+| `ATSEARCH_RETENTION_DAYS` | `0` (compose: `7`) | Delete records indexed more than this many days ago, hourly. `0` disables. **A full-firehose subscription grows without bound, so set this on any long-running deployment.** Freed pages are reused by SQLite; the file does not shrink. |
 | `ATSEARCH_INGEST_BATCH` | `500` | Records buffered before an index write transaction commits (live modes only). |
 | `ATSEARCH_INGEST_FLUSH_MS` | `2000` | Max time a buffered record waits before commit. Larger batches mean less disk I/O and a larger loss window on crash. |
-| `ATSEARCH_LOG_INGEST` | — | `1` logs every indexed record. Off by default: at firehose volume this alone can fill a disk. A per-minute count is logged instead. |
+| `ATSEARCH_LOG_INGEST` | - | `1` logs every indexed record. Off by default: at firehose volume this alone can fill a disk. A per-minute count is logged instead. |
 
 ### Query node
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `ATSEARCH_DHT_BOOTSTRAP` | — | Comma-separated bootstrap multiaddrs |
+| `ATSEARCH_DHT_BOOTSTRAP` | - | Comma-separated bootstrap multiaddrs |
 | `ATSEARCH_DHT_PORT` | `8002` | libp2p TCP listen port |
 | `ATSEARCH_LIBP2P_LISTEN_HOST` | `127.0.0.1` | Same as indexer; libp2p bind address |
 | `ATSEARCH_HTTP_PORT` | `3002` | HTTP server port |
 | `ATSEARCH_INDEXER_URLS` | `http://localhost:3001` | Comma-separated indexer base URLs |
 | `USE_MICROCOSM` | `true` when set; if unset, defaults to on when `MICROCOSM_SLINGSHOT_BASE_URL` is non-empty | Prefer Slingshot for record/identity reads |
-| `MICROCOSM_SLINGSHOT_BASE_URL` | — | e.g. `https://slingshot.microcosm.blue` |
-| `MICROCOSM_CONSTELLATION_BASE_URL` | — | e.g. `https://constellation.microcosm.blue` (for `GET /interactions` / backlinks) |
+| `MICROCOSM_SLINGSHOT_BASE_URL` | - | e.g. `https://slingshot.microcosm.blue` |
+| `MICROCOSM_CONSTELLATION_BASE_URL` | - | e.g. `https://constellation.microcosm.blue` (for `GET /interactions` / backlinks) |
 | `FALLBACK_ATPROTO_XRPC_BASE_URL` | `https://public.api.bsky.app` | App View / public XRPC when Slingshot does not serve a method |
 | `APP_USER_AGENT` | `at-search-demo/0.1 (local dev)` | User-Agent on outbound Microcosm + XRPC requests |
 
