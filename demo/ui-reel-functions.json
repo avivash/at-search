@@ -1,0 +1,114 @@
+{
+  "url": "https://atsearch.network",
+  "viewport": {
+    "width": 1280,
+    "height": 800
+  },
+  "colorScheme": "dark",
+  "outputFormat": "mp4",
+  "speed": 1.5,
+  "cursor": {
+    "style": "pointer"
+  },
+  "chrome": {
+    "url": false
+  },
+  "background": {
+    "gradient": {
+      "from": "#1a1a1f",
+      "to": "#0a0a0c"
+    },
+    "borderRadius": 12
+  },
+  "waitForSelector": "input[type=search]",
+  "steps": [
+    {
+      "action": "wait",
+      "ms": 1200
+    },
+    {
+      "action": "type",
+      "selector": "input[type=search]",
+      "text": "type:at.functions.metadata"
+    },
+    {
+      "action": "keyboard",
+      "key": "Enter"
+    },
+    {
+      "action": "wait",
+      "ms": 12000
+    },
+    {
+      "action": "screenshot",
+      "name": "01-atsearch-finds-functions"
+    },
+    {
+      "action": "wait",
+      "ms": 2000
+    },
+    {
+      "action": "fill",
+      "selector": "input[type=search]",
+      "text": ""
+    },
+    {
+      "action": "type",
+      "selector": "input[type=search]",
+      "text": "echo type:at.functions.metadata"
+    },
+    {
+      "action": "keyboard",
+      "key": "Enter"
+    },
+    {
+      "action": "wait",
+      "ms": 12000
+    },
+    {
+      "action": "screenshot",
+      "name": "02-atsearch-narrowed-to-echo"
+    },
+    {
+      "action": "wait",
+      "ms": 2500
+    },
+    {
+      "action": "navigate",
+      "url": "https://functions.at"
+    },
+    {
+      "action": "wait",
+      "ms": 6000
+    },
+    {
+      "action": "screenshot",
+      "name": "03-functions-app-grid"
+    },
+    {
+      "action": "wait",
+      "ms": 2500
+    },
+    {
+      "action": "type",
+      "selector": "input[placeholder=\"Search...\"]",
+      "text": "echo"
+    },
+    {
+      "action": "click",
+      "selector": "button[aria-label=\"Go\"]"
+    },
+    {
+      "action": "wait",
+      "ms": 9000
+    },
+    {
+      "action": "screenshot",
+      "name": "04-functions-app-same-index"
+    },
+    {
+      "action": "wait",
+      "ms": 3000
+    }
+  ]
+}
