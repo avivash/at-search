@@ -567,3 +567,13 @@ The seed script (`pnpm run seed`) inserts 12 synthetic records covering:
 - HTTPS + TLS for indexer HTTP endpoints
 - Query node result caching
 - Prometheus metrics for query latency, DHT lookup time, verification success rate
+
+---
+
+## License
+
+[MIT](LICENSE). Copyright (c) 2026 Andrew Vivash.
+
+The index itself is not a proprietary asset: every record it holds is public data
+published to AT Protocol repos, and `backfill` rebuilds the whole thing from those
+repos. Run your own indexer and you get the same index.

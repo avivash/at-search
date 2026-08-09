@@ -2,6 +2,7 @@
   "name": "at-search",
   "private": true,
   "version": "0.1.0",
+  "license": "MIT",
   "description": "Decentralized search and discovery layer for AT Protocol objects",
   "workspaces": [
     "packages/*"
